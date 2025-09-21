@@ -187,6 +187,52 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getPriceHistory(itemId: string, storeId?: string, daysBack: number = 30): Promise<Price[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+    
+    const baseCondition = and(
+      eq(prices.itemId, itemId),
+      sql`${prices.capturedAt} >= ${cutoffDate}`
+    );
+    
+    const condition = storeId 
+      ? and(baseCondition, eq(prices.storeId, storeId))
+      : baseCondition;
+    
+    return await db.select()
+      .from(prices)
+      .where(condition)
+      .orderBy(prices.capturedAt);
+  }
+
+  async getPriceHistoryForMultipleItems(itemIds: string[], daysBack: number = 30): Promise<(Price & { item: Item, store: Store })[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+    
+    return await db.select({
+      id: prices.id,
+      itemId: prices.itemId,
+      storeId: prices.storeId,
+      priceType: prices.priceType,
+      price: prices.price,
+      quantity: prices.quantity,
+      unit: prices.unit,
+      capturedAt: prices.capturedAt,
+      notes: prices.notes,
+      item: items,
+      store: stores
+    })
+      .from(prices)
+      .innerJoin(items, eq(prices.itemId, items.id))
+      .innerJoin(stores, eq(prices.storeId, stores.id))
+      .where(and(
+        inArray(prices.itemId, itemIds),
+        sql`${prices.capturedAt} >= ${cutoffDate}`
+      ))
+      .orderBy(prices.capturedAt);
+  }
+
   // Store Items methods
   async getStoreItemsForStore(storeId: string): Promise<StoreItem[]> {
     return await db.select().from(storeItems).where(eq(storeItems.storeId, storeId));
