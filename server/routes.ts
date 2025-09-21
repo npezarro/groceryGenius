@@ -100,6 +100,9 @@ async function generateTripPlans(
 ) {
   // Find items by fuzzy matching
   const allItems = await storage.getAllItems();
+  console.log(`Trip planning: Found ${allItems.length} items in database`);
+  console.log(`Trip planning: Looking for items: ${itemNames.join(', ')}`);
+  
   const matchedItems = itemNames.map(name => {
     const exactMatch = allItems.find(item => 
       item.name.toLowerCase() === name.toLowerCase()
@@ -114,15 +117,20 @@ async function generateTripPlans(
     return fuzzyMatch;
   }).filter(Boolean);
 
+  console.log(`Trip planning: Matched ${matchedItems.length} items: ${matchedItems.map(i => i?.name).join(', ')}`);
+
   if (matchedItems.length === 0) {
+    console.log('Trip planning: No matched items found');
     return [];
   }
 
   // Get stores within radius
   const nearbyStores = await storage.getStoresWithinRadius(userLat, userLng, radiusMiles);
   const storesWithCoords = nearbyStores.filter(store => store.lat && store.lng);
+  console.log(`Trip planning: Found ${storesWithCoords.length} stores within ${radiusMiles} miles`);
 
   if (storesWithCoords.length === 0) {
+    console.log('Trip planning: No stores within radius');
     return [];
   }
 
@@ -130,14 +138,22 @@ async function generateTripPlans(
   const itemIds = matchedItems.map(item => item!.id);
   const storeIds = storesWithCoords.map(store => store.id);
   const prices = await storage.getPricesForItems(itemIds, storeIds);
+  console.log(`Trip planning: Found ${prices.length} price records for items: ${itemIds.join(', ')} at stores: ${storeIds.join(', ')}`);
 
   // Generate single-store options
   const singleStorePlans = [];
+  console.log(`Trip planning: Generating single store plans for ${storesWithCoords.length} stores`);
+  
   for (const store of storesWithCoords) {
     const storePrices = prices.filter(p => p.storeId === store.id);
     const availableItems = new Set(storePrices.map(p => p.itemId));
     
-    if (availableItems.size === 0) continue;
+    console.log(`Trip planning: Store ${store.name} has ${storePrices.length} prices, ${availableItems.size} unique items`);
+    
+    if (availableItems.size === 0) {
+      console.log(`Trip planning: Skipping ${store.name} - no available items`);
+      continue;
+    }
     
     const totalCost = matchedItems.reduce((sum, item) => {
       const itemPrice = storePrices.find(p => p.itemId === item!.id);
@@ -145,8 +161,9 @@ async function generateTripPlans(
     }, 0);
 
     const coverage = availableItems.size / matchedItems.length;
+    console.log(`Trip planning: Store ${store.name} coverage: ${(coverage * 100).toFixed(1)}% (${availableItems.size}/${matchedItems.length} items), total cost: $${totalCost}`);
     
-    if (coverage > 0.5) { // At least 50% coverage
+    if (coverage >= 0.5) { // At least 50% coverage
       // Calculate distance and time (simplified)
       const distance = Math.sqrt(
         Math.pow(userLat - store.lat!, 2) + Math.pow(userLng - store.lng!, 2)
@@ -177,8 +194,14 @@ async function generateTripPlans(
         score: 100 - score * 10, // Invert for display (higher is better)
         coverage
       });
+      
+      console.log(`Trip planning: Added single-store plan for ${store.name} - ${availableItems.size} items, $${totalCost}, score: ${(100 - score * 10).toFixed(1)}`);
+    } else {
+      console.log(`Trip planning: Skipped ${store.name} - coverage ${(coverage * 100).toFixed(1)}% below 50% threshold`);
     }
   }
+  
+  console.log(`Trip planning: Generated ${singleStorePlans.length} single-store plans`);
 
   // Generate two-store combinations (simplified for now)
   const twoStorePlans = [];
@@ -267,7 +290,10 @@ async function generateTripPlans(
 
   // Combine and sort all plans
   const allPlans = [...singleStorePlans, ...twoStorePlans];
-  return allPlans.sort((a, b) => b.score - a.score).slice(0, 6);
+  console.log(`Trip planning: Final results - ${singleStorePlans.length} single-store plans, ${twoStorePlans.length} two-store plans, ${allPlans.length} total plans`);
+  const finalPlans = allPlans.sort((a, b) => b.score - a.score).slice(0, 6);
+  console.log(`Trip planning: Returning ${finalPlans.length} sorted plans`);
+  return finalPlans;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {

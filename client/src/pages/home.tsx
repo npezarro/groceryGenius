@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import ShoppingList from "@/components/shopping-list";
 import LocationPreferences from "@/components/location-preferences";
 import MapView from "@/components/map-view";
@@ -24,6 +24,26 @@ export default function Home() {
   });
   const [tripPlans, setTripPlans] = useState<TripPlan[]>([]);
   const [stores, setStores] = useState<any[]>([]);
+
+  // Fetch stores based on location and radius
+  const { data: nearbyStores } = useQuery({
+    queryKey: ['/api/stores', coordinates?.lat, coordinates?.lng, radius],
+    queryFn: async () => {
+      if (!coordinates) return [];
+      
+      const response = await fetch(`/api/stores?lat=${coordinates.lat}&lng=${coordinates.lng}&radius=${radius}`);
+      if (!response.ok) throw new Error('Failed to fetch stores');
+      return response.json();
+    },
+    enabled: !!coordinates
+  });
+
+  // Update stores state when nearbyStores changes
+  useEffect(() => {
+    if (nearbyStores) {
+      setStores(nearbyStores);
+    }
+  }, [nearbyStores]);
 
   // Trip planning mutation
   const generatePlansMutation = useMutation({
