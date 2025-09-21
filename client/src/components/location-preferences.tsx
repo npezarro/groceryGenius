@@ -3,7 +3,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { MapPin, Crosshair, Route } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { MapPin, Crosshair, Route, Star } from "lucide-react";
 import { LocationCoordinates, TripWeights } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
@@ -12,10 +14,12 @@ interface LocationPreferencesProps {
   coordinates: LocationCoordinates | null;
   radius: number;
   weights: TripWeights;
+  userHasMembership: boolean;
   onLocationChange: (location: string) => void;
   onCoordinatesChange: (coordinates: LocationCoordinates | null) => void;
   onRadiusChange: (radius: number) => void;
   onWeightsChange: (weights: TripWeights) => void;
+  onMembershipChange: (hasMembership: boolean) => void;
   onGeneratePlans: () => void;
   isGenerating: boolean;
 }
@@ -25,10 +29,12 @@ export default function LocationPreferences({
   coordinates,
   radius,
   weights,
+  userHasMembership,
   onLocationChange,
   onCoordinatesChange,
   onRadiusChange,
   onWeightsChange,
+  onMembershipChange,
   onGeneratePlans,
   isGenerating
 }: LocationPreferencesProps) {
@@ -182,6 +188,29 @@ export default function LocationPreferences({
             <span>1 mi</span>
             <span>25 mi</span>
           </div>
+        </div>
+
+        {/* Member Benefits Toggle */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between space-x-2">
+            <div className="flex items-center space-x-2">
+              <Star className="w-4 h-4 text-yellow-500" />
+              <Label htmlFor="membership-toggle" className="text-sm font-medium">
+                Store Membership Benefits
+              </Label>
+            </div>
+            <Switch
+              id="membership-toggle"
+              checked={userHasMembership}
+              onCheckedChange={onMembershipChange}
+              data-testid="switch-membership"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {userHasMembership 
+              ? "Member pricing and exclusive deals will be applied to trip plans" 
+              : "Enable to see member discounts and special offers"}
+          </p>
         </div>
 
         {/* Weight Sliders */}

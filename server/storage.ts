@@ -28,7 +28,8 @@ export interface IStorage {
 
   // Price methods
   getPricesForItems(itemIds: string[], storeIds?: string[]): Promise<Price[]>;
-  getCheapestPricesForItems(itemIds: string[], storeIds?: string[]): Promise<Price[]>;
+  getCheapestPricesForItems(itemIds: string[], storeIds?: string[], userHasMembership?: boolean): Promise<Price[]>;
+  getPromotionalPrices(itemIds?: string[], storeIds?: string[]): Promise<Price[]>;
   createPrice(price: InsertPrice): Promise<Price>;
   importPrices(prices: InsertPrice[]): Promise<void>;
 
@@ -142,10 +143,32 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(prices).where(inArray(prices.itemId, itemIds));
   }
 
-  async getCheapestPricesForItems(itemIds: string[], storeIds?: string[]): Promise<Price[]> {
+  async getCheapestPricesForItems(itemIds: string[], storeIds?: string[], userHasMembership: boolean = false): Promise<Price[]> {
+    const now = new Date();
+    
+    // Calculate effective price considering promotions and member pricing
+    const effectivePriceExpression = sql<number>`
+      CASE 
+        WHEN ${prices.isPromotion} = true 
+          AND (${prices.promotionStartDate} IS NULL OR ${prices.promotionStartDate} <= ${now})
+          AND (${prices.promotionEndDate} IS NULL OR ${prices.promotionEndDate} >= ${now})
+          AND ${userHasMembership} = true 
+          AND ${prices.memberPrice} IS NOT NULL
+        THEN LEAST(${prices.price}, ${prices.memberPrice})
+        WHEN ${prices.isPromotion} = true 
+          AND (${prices.promotionStartDate} IS NULL OR ${prices.promotionStartDate} <= ${now})
+          AND (${prices.promotionEndDate} IS NULL OR ${prices.promotionEndDate} >= ${now})
+        THEN ${prices.price}
+        WHEN ${userHasMembership} = true 
+          AND ${prices.memberPrice} IS NOT NULL
+        THEN LEAST(${prices.price}, ${prices.memberPrice})
+        ELSE ${prices.price}
+      END
+    `.as('effective_price');
+
     const subquery = db.select({
       itemId: prices.itemId,
-      minPrice: sql<number>`min(${prices.price})`.as('min_price')
+      minPrice: sql<number>`min(${effectivePriceExpression})`.as('min_effective_price')
     })
     .from(prices)
     .where(
@@ -165,12 +188,19 @@ export class DatabaseStorage implements IStorage {
       quantity: prices.quantity,
       unit: prices.unit,
       capturedAt: prices.capturedAt,
-      notes: prices.notes
+      notes: prices.notes,
+      isPromotion: prices.isPromotion,
+      originalPrice: prices.originalPrice,
+      promotionText: prices.promotionText,
+      promotionStartDate: prices.promotionStartDate,
+      promotionEndDate: prices.promotionEndDate,
+      memberPrice: prices.memberPrice,
+      loyaltyRequired: prices.loyaltyRequired
     })
       .from(prices)
       .innerJoin(subquery, and(
         eq(prices.itemId, subquery.itemId),
-        eq(prices.price, subquery.minPrice)
+        eq(effectivePriceExpression, subquery.minPrice)
       ));
     
     return result;
@@ -185,6 +215,31 @@ export class DatabaseStorage implements IStorage {
     if (priceList.length > 0) {
       await db.insert(prices).values(priceList);
     }
+  }
+
+  async getPromotionalPrices(itemIds?: string[], storeIds?: string[]): Promise<Price[]> {
+    const now = new Date();
+    
+    // Build conditions array
+    const conditions = [
+      eq(prices.isPromotion, true),
+      // Only include active promotions (start date is null or in the past, end date is null or in the future)
+      sql`(${prices.promotionStartDate} IS NULL OR ${prices.promotionStartDate} <= ${now})`,
+      sql`(${prices.promotionEndDate} IS NULL OR ${prices.promotionEndDate} >= ${now})`
+    ];
+    
+    if (itemIds && itemIds.length > 0) {
+      conditions.push(inArray(prices.itemId, itemIds));
+    }
+    
+    if (storeIds && storeIds.length > 0) {
+      conditions.push(inArray(prices.storeId, storeIds));
+    }
+    
+    return await db.select()
+      .from(prices)
+      .where(and(...conditions))
+      .orderBy(desc(prices.capturedAt));
   }
 
   async getPriceHistory(itemId: string, storeId?: string, daysBack: number = 30): Promise<Price[]> {
@@ -220,6 +275,13 @@ export class DatabaseStorage implements IStorage {
       unit: prices.unit,
       capturedAt: prices.capturedAt,
       notes: prices.notes,
+      isPromotion: prices.isPromotion,
+      originalPrice: prices.originalPrice,
+      promotionText: prices.promotionText,
+      promotionStartDate: prices.promotionStartDate,
+      promotionEndDate: prices.promotionEndDate,
+      memberPrice: prices.memberPrice,
+      loyaltyRequired: prices.loyaltyRequired,
       item: items,
       store: stores
     })

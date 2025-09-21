@@ -3,6 +3,7 @@ import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { PromotionBadge } from "./promotion-badge";
 
 interface PriceSparklineProps {
   itemId: string;
@@ -12,6 +13,7 @@ interface PriceSparklineProps {
   currentPrice?: number;
   days?: number;
   className?: string;
+  userHasMembership?: boolean;
 }
 
 interface PricePoint {
@@ -27,7 +29,8 @@ export default function PriceSparkline({
   storeName, 
   currentPrice,
   days = 30,
-  className = ""
+  className = "",
+  userHasMembership = false
 }: PriceSparklineProps) {
   const { data: priceHistory, isLoading } = useQuery({
     queryKey: ['/api/prices/history', itemId, storeId, days],
@@ -38,6 +41,21 @@ export default function PriceSparkline({
       
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch price history');
+      return response.json();
+    },
+    enabled: !!itemId
+  });
+
+  // Fetch promotional prices for this item
+  const { data: promotionalPrices } = useQuery({
+    queryKey: ['/api/prices/promotions', itemId, storeId],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('itemIds', itemId);
+      if (storeId) params.append('storeIds', storeId);
+      
+      const response = await fetch(`/api/prices/promotions?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch promotional prices');
       return response.json();
     },
     enabled: !!itemId
@@ -66,6 +84,11 @@ export default function PriceSparkline({
 
   const trend = getTrend();
   const hasData = sparklineData.length > 0;
+  
+  // Get the current promotional price for this item/store combination
+  const currentPromotion = promotionalPrices?.find((promo: any) => 
+    promo.itemId === itemId && (!storeId || promo.storeId === storeId)
+  );
 
   if (isLoading) {
     return (
@@ -91,68 +114,84 @@ export default function PriceSparkline({
   const latestPrice = sparklineData[sparklineData.length - 1]?.price || currentPrice;
 
   return (
-    <div className={`flex items-center space-x-2 ${className}`} data-testid={`price-sparkline-${itemId}`}>
-      {/* Sparkline Chart */}
-      <div className="w-16 h-8">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={sparklineData}>
-            <Line 
-              type="monotone" 
-              dataKey="price" 
-              stroke={trend?.direction === 'up' ? '#ef4444' : trend?.direction === 'down' ? '#22c55e' : '#6b7280'}
-              strokeWidth={1.5}
-              dot={false}
-              activeDot={{ r: 2, stroke: 'currentColor', strokeWidth: 1 }}
-            />
-            <Tooltip 
-              content={({ active, payload, label }) => {
-                if (active && payload && payload.length) {
-                  return (
-                    <div className="bg-popover border border-border rounded px-2 py-1 shadow-md">
-                      <p className="text-xs font-medium">${Number(payload[0].value).toFixed(2)}</p>
-                      <p className="text-xs text-muted-foreground">{label}</p>
-                      {storeName && <p className="text-xs text-muted-foreground">{storeName}</p>}
-                    </div>
-                  );
-                }
-                return null;
-              }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+    <div className={`flex flex-col space-y-2 ${className}`} data-testid={`price-sparkline-${itemId}`}>
+      {/* Top row: Sparkline, Price Info, and Price Range */}
+      <div className="flex items-center space-x-2">
+        {/* Sparkline Chart */}
+        <div className="w-16 h-8">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={sparklineData}>
+              <Line 
+                type="monotone" 
+                dataKey="price" 
+                stroke={trend?.direction === 'up' ? '#ef4444' : trend?.direction === 'down' ? '#22c55e' : '#6b7280'}
+                strokeWidth={1.5}
+                dot={false}
+                activeDot={{ r: 2, stroke: 'currentColor', strokeWidth: 1 }}
+              />
+              <Tooltip 
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="bg-popover border border-border rounded px-2 py-1 shadow-md">
+                        <p className="text-xs font-medium">${Number(payload[0].value).toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">{label}</p>
+                        {storeName && <p className="text-xs text-muted-foreground">{storeName}</p>}
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
 
-      {/* Price Info */}
-      <div className="flex flex-col items-start">
-        <div className="flex items-center space-x-1">
-          <span className="text-sm font-medium" data-testid={`current-price-${itemId}`}>
-            ${latestPrice?.toFixed(2)}
-          </span>
-          {trend && (
-            <div className="flex items-center">
-              {trend.direction === 'up' && <TrendingUp size={12} className="text-red-500" />}
-              {trend.direction === 'down' && <TrendingDown size={12} className="text-green-500" />}
-              {trend.direction === 'stable' && <Minus size={12} className="text-gray-500" />}
-            </div>
+        {/* Price Info */}
+        <div className="flex flex-col items-start">
+          <div className="flex items-center space-x-1">
+            <span className="text-sm font-medium" data-testid={`current-price-${itemId}`}>
+              ${latestPrice?.toFixed(2)}
+            </span>
+            {trend && (
+              <div className="flex items-center">
+                {trend.direction === 'up' && <TrendingUp size={12} className="text-red-500" />}
+                {trend.direction === 'down' && <TrendingDown size={12} className="text-green-500" />}
+                {trend.direction === 'stable' && <Minus size={12} className="text-gray-500" />}
+              </div>
+            )}
+          </div>
+          
+          {trend && trend.change > 0.01 && (
+            <Badge 
+              variant={trend.direction === 'up' ? 'destructive' : 'default'}
+              className="text-xs px-1 py-0 h-4"
+              data-testid={`trend-badge-${itemId}`}
+            >
+              {trend.direction === 'up' ? '+' : '-'}${trend.change.toFixed(2)}
+            </Badge>
           )}
         </div>
-        
-        {trend && trend.change > 0.01 && (
-          <Badge 
-            variant={trend.direction === 'up' ? 'destructive' : 'default'}
-            className="text-xs px-1 py-0 h-4"
-            data-testid={`trend-badge-${itemId}`}
-          >
-            {trend.direction === 'up' ? '+' : '-'}${trend.change.toFixed(2)}
-          </Badge>
-        )}
+
+        {/* Price Range */}
+        <div className="text-xs text-muted-foreground">
+          <div>H: ${maxPrice.toFixed(2)}</div>
+          <div>L: ${minPrice.toFixed(2)}</div>
+        </div>
       </div>
 
-      {/* Price Range */}
-      <div className="text-xs text-muted-foreground">
-        <div>H: ${maxPrice.toFixed(2)}</div>
-        <div>L: ${minPrice.toFixed(2)}</div>
-      </div>
+      {/* Bottom row: Promotional pricing if available */}
+      {currentPromotion && (
+        <PromotionBadge
+          isPromotion={currentPromotion.isPromotion}
+          originalPrice={currentPromotion.originalPrice}
+          promotionText={currentPromotion.promotionText}
+          memberPrice={currentPromotion.memberPrice}
+          loyaltyRequired={currentPromotion.loyaltyRequired}
+          currentPrice={currentPromotion.price}
+          userHasMembership={userHasMembership}
+        />
+      )}
     </div>
   );
 }

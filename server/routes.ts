@@ -91,12 +91,40 @@ function parseCSV(csvText: string): string[][] {
 }
 
 // Trip planning algorithm
+// Helper function to calculate effective price considering promotions and member pricing
+function calculateEffectivePrice(price: any, userHasMembership: boolean = false): number {
+  const now = new Date();
+  
+  // Start with original price or current price as fallback
+  let effectivePrice = parseFloat(price.originalPrice || price.price);
+  let currentPrice = parseFloat(price.price);
+  
+  // Check if promotion is active
+  const isActivePromotion = price.isPromotion && 
+    (!price.promotionStartDate || new Date(price.promotionStartDate) <= now) &&
+    (!price.promotionEndDate || new Date(price.promotionEndDate) >= now);
+  
+  // Apply promotional pricing if active
+  if (isActivePromotion) {
+    effectivePrice = Math.min(effectivePrice, currentPrice);
+  }
+  
+  // Apply member pricing if user has membership and member price exists
+  if (userHasMembership && price.memberPrice) {
+    const memberPrice = parseFloat(price.memberPrice);
+    effectivePrice = Math.min(effectivePrice, memberPrice);
+  }
+  
+  return effectivePrice;
+}
+
 async function generateTripPlans(
   itemNames: string[],
   userLat: number,
   userLng: number,
   radiusMiles: number,
-  weights: { price: number; time: number; distance: number }
+  weights: { price: number; time: number; distance: number },
+  userHasMembership: boolean = false
 ) {
   // Find items by fuzzy matching
   const allItems = await storage.getAllItems();
@@ -157,7 +185,7 @@ async function generateTripPlans(
     
     const totalCost = matchedItems.reduce((sum, item) => {
       const itemPrice = storePrices.find(p => p.itemId === item!.id);
-      return sum + (itemPrice ? parseFloat(itemPrice.price) : 0);
+      return sum + (itemPrice ? calculateEffectivePrice(itemPrice, userHasMembership) : 0);
     }, 0);
 
     const coverage = availableItems.size / matchedItems.length;
@@ -228,20 +256,23 @@ async function generateTripPlans(
           const price2 = store2Prices.find(p => p.itemId === item!.id);
           
           if (price1 && price2) {
-            // Choose cheaper option
-            if (parseFloat(price1.price) <= parseFloat(price2.price)) {
+            // Choose cheaper option using effective pricing
+            const effectivePrice1 = calculateEffectivePrice(price1, userHasMembership);
+            const effectivePrice2 = calculateEffectivePrice(price2, userHasMembership);
+            
+            if (effectivePrice1 <= effectivePrice2) {
               store1Items.push(item);
-              totalCost += parseFloat(price1.price);
+              totalCost += effectivePrice1;
             } else {
               store2Items.push(item);
-              totalCost += parseFloat(price2.price);
+              totalCost += effectivePrice2;
             }
           } else if (price1) {
             store1Items.push(item);
-            totalCost += parseFloat(price1.price);
+            totalCost += calculateEffectivePrice(price1, userHasMembership);
           } else if (price2) {
             store2Items.push(item);
-            totalCost += parseFloat(price2.price);
+            totalCost += calculateEffectivePrice(price2, userHasMembership);
           }
         }
         
@@ -271,11 +302,11 @@ async function generateTripPlans(
           stores: [
             { store: store1, items: store1Items, subtotal: store1Items.reduce((sum, item) => {
               const price = store1Prices.find(p => p.itemId === item!.id);
-              return sum + (price ? parseFloat(price.price) : 0);
+              return sum + (price ? calculateEffectivePrice(price, userHasMembership) : 0);
             }, 0) },
             { store: store2, items: store2Items, subtotal: store2Items.reduce((sum, item) => {
               const price = store2Prices.find(p => p.itemId === item!.id);
-              return sum + (price ? parseFloat(price.price) : 0);
+              return sum + (price ? calculateEffectivePrice(price, userHasMembership) : 0);
             }, 0) }
           ],
           totalCost,
@@ -411,6 +442,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Promotional prices endpoint
+  app.get("/api/prices/promotions", async (req: Request, res: Response) => {
+    try {
+      const { itemIds, storeIds } = req.query;
+      
+      const itemIdArray = itemIds && typeof itemIds === 'string' ? itemIds.split(',') : undefined;
+      const storeIdArray = storeIds && typeof storeIds === 'string' ? storeIds.split(',') : undefined;
+      
+      const promotions = await storage.getPromotionalPrices(itemIdArray, storeIdArray);
+      res.json(promotions);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to fetch promotional prices" });
+    }
+  });
+
   // Geocoding endpoint
   app.post("/api/geocode", async (req: Request, res: Response) => {
     try {
@@ -444,17 +490,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           price: z.number().min(0).max(1),
           time: z.number().min(0).max(1),
           distance: z.number().min(0).max(1)
-        })
+        }),
+        userHasMembership: z.boolean().optional().default(false)
       });
 
-      const { items, location, radius, weights } = schema.parse(req.body);
+      const { items, location, radius, weights, userHasMembership } = schema.parse(req.body);
       
       const tripPlans = await generateTripPlans(
         items,
         location.lat,
         location.lng,
         radius,
-        weights
+        weights,
+        userHasMembership
       );
       
       res.json(tripPlans);

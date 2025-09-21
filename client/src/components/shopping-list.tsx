@@ -11,9 +11,10 @@ import PriceSparkline from "./price-sparkline";
 interface ShoppingListProps {
   items: ShoppingListItem[];
   onItemsChange: (items: ShoppingListItem[]) => void;
+  userHasMembership?: boolean;
 }
 
-export default function ShoppingList({ items, onItemsChange }: ShoppingListProps) {
+export default function ShoppingList({ items, onItemsChange, userHasMembership = false }: ShoppingListProps) {
   const [newItemName, setNewItemName] = useState("");
   const [bulkItems, setBulkItems] = useState("");
 
@@ -204,6 +205,7 @@ export default function ShoppingList({ items, onItemsChange }: ShoppingListProps
                           itemId={itemId}
                           itemName={item.name}
                           className="flex-1"
+                          userHasMembership={userHasMembership}
                         />
                       </div>
                     ) : (
