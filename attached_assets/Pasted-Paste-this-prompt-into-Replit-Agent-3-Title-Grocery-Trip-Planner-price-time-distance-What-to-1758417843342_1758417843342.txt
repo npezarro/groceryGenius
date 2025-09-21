@@ -1,0 +1,68 @@
+Paste this prompt into Replit Agent 3
+
+Title: Grocery Trip Planner (price × time × distance)
+What to build:
+Build a Next.js or similar web app that lets users:
+
+Paste or upload a CSV/line-broken list of grocery items to form a shopping list.
+
+Set a location (with geocoding and a map).
+
+Generate multiple trip options that cover the list using nearby stores, ranked by a composite score of price, time, distance.
+
+Data model (create tables):
+
+stores(store_id, name, address, lat, lng, hours_json)
+
+items(item_id, name, descriptor, unit, organic_conventional, bunch_flag)
+
+prices(price_id, item_id, store_id, price_type, price, quantity, unit, captured_at, notes)
+
+store_items(store_id, item_id, in_stock) (allow nulls for now)
+
+Seed from these CSVs (upload and import):
+
+/mnt/data/stores.csv, /mnt/data/items.csv, /mnt/data/prices.csv
+
+Trip planning logic:
+
+Candidates: stores within a user-set radius from the chosen point.
+
+Coverage: single-store options, then 2–3 store combos that cover the full list.
+
+Price: sum the cheapest available price per item across the chosen store(s) using prices.
+
+Time/Distance: call Mapbox Matrix API to compute travel times/distances between the user and the chosen store sequence.
+
+Score: w_price * z(price_total) + w_time * z(travel_time) + w_dist * z(distance_km) with user-adjustable weights.
+
+Output 3–6 plans with: store order, list of items per store, price subtotal, ETA, distance, and any “member/sale” price flags.
+
+Provide “Open in Google Maps/Apple Maps” links for the route.
+
+UX:
+
+Quick add search + CSV/textarea paste; fuzzy match item names.
+
+Sliders for weightings + radius.
+
+Results cards for plan options with a “Choose this plan” button and a printable share view.
+
+Tech choices:
+
+Use a hosted Postgres (Neon/Supabase or Replit’s managed option); install a migration script.
+
+Use Mapbox Matrix/Optimization APIs for time/distance (keep the API key in secrets).
+
+Add an admin page to upload new CSVs and to geocode store addresses to lat/lng.
+
+Stretch:
+
+Price history sparklines per item.
+
+Promo flags surfaced in results.
+
+Basic auth so users can save multiple lists.
+
+The agent will scaffold the repo, install dependencies, set up the DB, and deploy. Keep iterating in chat: “Import my three CSVs,” “Add weight sliders,” “Show per-store subtotals,” etc. 
+Replit
