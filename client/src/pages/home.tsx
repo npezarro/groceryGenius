@@ -175,6 +175,7 @@ export default function Home() {
               tripPlans={tripPlans}
               isLoading={generatePlansMutation.isPending}
               onSelectPlan={handleSelectPlan}
+              userCoordinates={coordinates}
             />
             
             <AdminPanel />

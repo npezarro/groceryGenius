@@ -1,28 +1,38 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Route, ExternalLink, Printer, Clock, MapPin, Star, Search } from "lucide-react";
-import { TripPlan } from "@/lib/types";
+import { Route, ExternalLink, Printer, Clock, MapPin, Star, Search, Navigation } from "lucide-react";
+import { TripPlan, LocationCoordinates } from "@/lib/types";
 
 interface TripPlansProps {
   tripPlans: TripPlan[];
   isLoading: boolean;
   onSelectPlan: (plan: TripPlan) => void;
+  userCoordinates?: LocationCoordinates | null;
 }
 
-export default function TripPlans({ tripPlans, isLoading, onSelectPlan }: TripPlansProps) {
-  const generateMapsLink = (plan: TripPlan, userLat?: number, userLng?: number) => {
-    if (!userLat || !userLng) return "#";
+export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoordinates }: TripPlansProps) {
+  const generateGoogleMapsLink = (plan: TripPlan) => {
+    if (!userCoordinates) return "#";
     
     const waypoints = plan.stores
       .filter(s => s.store.lat && s.store.lng)
       .map(s => `${s.store.lat},${s.store.lng}`)
-      .join('|');
+      .join('/');
     
-    const origin = `${userLat},${userLng}`;
-    const destination = waypoints.split('|')[waypoints.split('|').length - 1] || origin;
+    const origin = `${userCoordinates.lat},${userCoordinates.lng}`;
     
-    return `https://www.google.com/maps/dir/${origin}/${waypoints}/${destination}`;
+    return `https://www.google.com/maps/dir/${origin}/${waypoints}`;
+  };
+
+  const generateAppleMapsLink = (plan: TripPlan) => {
+    if (!userCoordinates) return "#";
+    
+    const firstStore = plan.stores.find(s => s.store.lat && s.store.lng);
+    if (!firstStore) return "#";
+    
+    // Apple Maps doesn't support multi-waypoint routing as easily, so we'll just route to the first store
+    return `http://maps.apple.com/?saddr=${userCoordinates.lat},${userCoordinates.lng}&daddr=${firstStore.store.lat},${firstStore.store.lng}`;
   };
 
   const formatTime = (minutes: number) => {
@@ -178,11 +188,22 @@ export default function TripPlans({ tripPlans, isLoading, onSelectPlan }: TripPl
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(generateMapsLink(plan), '_blank')}
-                    data-testid={`button-maps-${index}`}
+                    onClick={() => window.open(generateGoogleMapsLink(plan), '_blank')}
+                    data-testid={`button-google-maps-${index}`}
+                    disabled={!userCoordinates}
+                  >
+                    <Navigation size={14} className="mr-1" />
+                    Google
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(generateAppleMapsLink(plan), '_blank')}
+                    data-testid={`button-apple-maps-${index}`}
+                    disabled={!userCoordinates}
                   >
                     <ExternalLink size={14} className="mr-1" />
-                    Maps
+                    Apple
                   </Button>
                   <Button
                     variant="outline"
