@@ -39,6 +39,30 @@ export default function Home() {
     enabled: !!coordinates
   });
 
+  // Auto-geocode default location on page load
+  useEffect(() => {
+    const geocodeDefaultLocation = async () => {
+      if (!coordinates && location) {
+        try {
+          const response = await fetch('/api/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: location })
+          });
+
+          if (response.ok) {
+            const coords = await response.json();
+            setCoordinates(coords);
+          }
+        } catch (error) {
+          console.log('Failed to geocode default location:', error);
+        }
+      }
+    };
+
+    geocodeDefaultLocation();
+  }, [location, coordinates]);
+
   // Update stores state when nearbyStores changes
   useEffect(() => {
     if (nearbyStores) {
