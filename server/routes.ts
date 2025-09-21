@@ -1,7 +1,8 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertStoreSchema, insertItemSchema, insertPriceSchema, insertShoppingListSchema } from "@shared/schema";
+import { insertStoreSchema, insertItemSchema, insertPriceSchema, insertShoppingListSchema, prices } from "@shared/schema";
+import { db } from "./db";
 import { z } from "zod";
 
 // Mapbox integration
@@ -326,6 +327,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch stores" });
+    }
+  });
+
+  // Prices endpoints
+  app.get("/api/prices", async (req: Request, res: Response) => {
+    try {
+      const { itemIds, storeIds } = req.query;
+      
+      let priceResults;
+      if (itemIds && typeof itemIds === 'string') {
+        const itemIdArray = itemIds.split(',');
+        const storeIdArray = storeIds && typeof storeIds === 'string' ? storeIds.split(',') : undefined;
+        priceResults = await storage.getPricesForItems(itemIdArray, storeIdArray);
+      } else {
+        // Get all prices
+        priceResults = await db.select().from(prices);
+      }
+      
+      res.json(priceResults);
+    } catch (error) {
+      console.error("Prices endpoint error:", error);
+      res.status(500).json({ error: "Failed to fetch prices" });
     }
   });
 
