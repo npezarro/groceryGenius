@@ -33,6 +33,14 @@ export const prices = pgTable("prices", {
   unit: text("unit"),
   capturedAt: timestamp("captured_at").defaultNow(),
   notes: text("notes"),
+  // Promotional pricing fields
+  isPromotion: boolean("is_promotion").default(false),
+  originalPrice: decimal("original_price", { precision: 10, scale: 2 }),
+  promotionText: text("promotion_text"),
+  promotionStartDate: timestamp("promotion_start_date"),
+  promotionEndDate: timestamp("promotion_end_date"),
+  memberPrice: decimal("member_price", { precision: 10, scale: 2 }),
+  loyaltyRequired: boolean("loyalty_required").default(false),
 });
 
 export const storeItems = pgTable("store_items", {

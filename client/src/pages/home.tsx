@@ -22,6 +22,7 @@ export default function Home() {
     time: 0.25,
     distance: 0.15
   });
+  const [userHasMembership, setUserHasMembership] = useState(false);
   const [tripPlans, setTripPlans] = useState<TripPlan[]>([]);
   const [stores, setStores] = useState<any[]>([]);
 
@@ -56,7 +57,8 @@ export default function Home() {
         items: shoppingItems.map(item => item.name),
         location: coordinates,
         radius,
-        weights
+        weights,
+        userHasMembership
       });
       
       return response.json();
@@ -147,6 +149,7 @@ export default function Home() {
             <ShoppingList
               items={shoppingItems}
               onItemsChange={setShoppingItems}
+              userHasMembership={userHasMembership}
             />
             
             <LocationPreferences
@@ -154,10 +157,12 @@ export default function Home() {
               coordinates={coordinates}
               radius={radius}
               weights={weights}
+              userHasMembership={userHasMembership}
               onLocationChange={setLocation}
               onCoordinatesChange={setCoordinates}
               onRadiusChange={setRadius}
               onWeightsChange={setWeights}
+              onMembershipChange={setUserHasMembership}
               onGeneratePlans={handleGeneratePlans}
               isGenerating={generatePlansMutation.isPending}
             />

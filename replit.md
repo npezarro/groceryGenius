@@ -30,9 +30,10 @@ Preferred communication style: Simple, everyday language.
 - **Schema Design**: 
   - `stores` table with geocoded coordinates and operating hours
   - `items` table with product details and categorization
-  - `prices` table linking items to stores with temporal pricing data
+  - `prices` table linking items to stores with temporal pricing data and promotional features
   - `store_items` table for inventory tracking
   - `shopping_lists` and `trip_plans` for user-generated content
+  - Enhanced pricing schema with promotional fields (isPromotion, originalPrice, memberPrice, loyaltyRequired)
 - **Migrations**: Drizzle Kit for database schema management and migrations
 
 ### Authentication and Authorization
@@ -51,11 +52,12 @@ Preferred communication style: Simple, everyday language.
 - **Store Selection**: Filters stores within user-defined radius using geographic calculations
 - **Coverage Analysis**: Generates single-store and multi-store combinations to cover entire shopping list
 - **Optimization Scoring**: Weighted composite score combining:
-  - Price optimization using cheapest available prices per item
+  - Price optimization using promotional and member pricing with cheapest available prices per item
   - Travel time from Mapbox routing
   - Total distance calculations
   - Z-score normalization for fair comparison across metrics
 - **Route Generation**: Creates optimized store visit sequences with mapping service integration
+- **Promotional Pricing**: Comprehensive system for sales and member-specific discounts that affects actual trip cost calculations
 
 ### Import and Data Management
 - CSV import functionality for bulk data loading (stores, items, prices)
@@ -68,6 +70,17 @@ Preferred communication style: Simple, everyday language.
 - **Production Build**: Server bundling with esbuild, client bundling with Vite
 - **Type Safety**: Comprehensive TypeScript coverage across client, server, and shared code
 - **Code Quality**: ESLint configuration and consistent formatting
+
+## Recent Features
+
+### Promotional Pricing System (September 2025)
+- **Comprehensive Database Schema**: Enhanced prices table with promotional fields including isPromotion, originalPrice, promotionText, promotionStartDate, promotionEndDate, memberPrice, and loyaltyRequired
+- **Visual Differentiation**: Created PromotionBadge component with distinct styling for regular sales (red "SALE" badges) versus member-only specials (yellow "Member Special" badges)
+- **Backend Integration**: Implemented promotional pricing API endpoint (/api/prices/promotions) with active date filtering and proper query composition
+- **Trip Planning Integration**: Updated cost optimization algorithms to calculate effective pricing based on promotional status and user membership
+- **Membership Management**: Added membership toggle in location preferences UI with state management and integration into trip planning calculations
+- **Price History Enhancement**: Integrated promotional pricing display into existing price sparkline visualizations with appropriate badges
+- **Real-time Cost Calculation**: Trip plans now reflect actual savings from promotional pricing and member benefits in total cost calculations
 
 ## External Dependencies
 
