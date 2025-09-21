@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Upload, Plus, List } from "lucide-react";
+import { X, Upload, Plus, List, TrendingUp } from "lucide-react";
 import { ShoppingListItem } from "@/lib/types";
+import PriceSparkline from "./price-sparkline";
 
 interface ShoppingListProps {
   items: ShoppingListItem[];
@@ -14,6 +16,26 @@ interface ShoppingListProps {
 export default function ShoppingList({ items, onItemsChange }: ShoppingListProps) {
   const [newItemName, setNewItemName] = useState("");
   const [bulkItems, setBulkItems] = useState("");
+
+  // Fetch items from database to get IDs for price history
+  const { data: dbItems } = useQuery({
+    queryKey: ['/api/items'],
+    queryFn: async () => {
+      const response = await fetch('/api/items');
+      if (!response.ok) throw new Error('Failed to fetch items');
+      return response.json();
+    }
+  });
+
+  const getItemId = (itemName: string) => {
+    if (!dbItems) return null;
+    const dbItem = dbItems.find((item: any) => 
+      item.name.toLowerCase() === itemName.toLowerCase() ||
+      item.name.toLowerCase().includes(itemName.toLowerCase()) ||
+      itemName.toLowerCase().includes(item.name.toLowerCase())
+    );
+    return dbItem?.id || null;
+  };
 
   const addItem = () => {
     if (newItemName.trim()) {
@@ -153,25 +175,46 @@ export default function ShoppingList({ items, onItemsChange }: ShoppingListProps
               <p className="text-sm">Add items above to get started</p>
             </div>
           ) : (
-            <div className="space-y-2" data-testid="shopping-list-items">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-2 bg-muted rounded-md"
-                  data-testid={`item-${item.id}`}
-                >
-                  <span className="text-sm">{item.name}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => removeItem(item.id)}
-                    className="text-destructive hover:text-destructive/80 h-6 w-6 p-0"
-                    data-testid={`button-remove-${item.id}`}
+            <div className="space-y-3" data-testid="shopping-list-items">
+              {items.map((item) => {
+                const itemId = getItemId(item.name);
+                return (
+                  <div
+                    key={item.id}
+                    className="p-3 bg-muted rounded-md"
+                    data-testid={`item-${item.id}`}
                   >
-                    <X size={14} />
-                  </Button>
-                </div>
-              ))}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">{item.name}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removeItem(item.id)}
+                        className="text-destructive hover:text-destructive/80 h-6 w-6 p-0"
+                        data-testid={`button-remove-${item.id}`}
+                      >
+                        <X size={14} />
+                      </Button>
+                    </div>
+                    
+                    {itemId ? (
+                      <div className="flex items-center space-x-2">
+                        <TrendingUp size={12} className="text-muted-foreground" />
+                        <PriceSparkline
+                          itemId={itemId}
+                          itemName={item.name}
+                          className="flex-1"
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground flex items-center">
+                        <TrendingUp size={12} className="mr-1 opacity-50" />
+                        <span>Price history not available</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

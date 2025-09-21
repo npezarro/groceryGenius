@@ -378,6 +378,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Price history endpoints
+  app.get("/api/prices/history/:itemId", async (req: Request, res: Response) => {
+    try {
+      const { itemId } = req.params;
+      const { storeId, days } = req.query;
+      
+      const daysBack = days ? parseInt(days as string) : 30;
+      const history = await storage.getPriceHistory(itemId, storeId as string, daysBack);
+      
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to fetch price history" });
+    }
+  });
+
+  app.get("/api/prices/history", async (req: Request, res: Response) => {
+    try {
+      const { itemIds, days } = req.query;
+      
+      if (!itemIds) {
+        return res.status(400).json({ error: "itemIds parameter is required" });
+      }
+      
+      const itemIdArray = (itemIds as string).split(',');
+      const daysBack = days ? parseInt(days as string) : 30;
+      
+      const history = await storage.getPriceHistoryForMultipleItems(itemIdArray, daysBack);
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to fetch price history" });
+    }
+  });
+
   // Geocoding endpoint
   app.post("/api/geocode", async (req: Request, res: Response) => {
     try {
