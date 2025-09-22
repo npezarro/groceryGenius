@@ -4,6 +4,9 @@ import { storage } from "./storage";
 import { insertStoreSchema, insertItemSchema, insertPriceSchema, insertShoppingListSchema, prices } from "@shared/schema";
 import { db } from "./db";
 import { z } from "zod";
+import os from "os";
+import crypto from "crypto";
+import { seedIfEmpty } from "./seed";
 
 // Mapbox integration
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
@@ -327,7 +330,54 @@ async function generateTripPlans(
   return finalPlans;
 }
 
+function checkAdminAuth(req: Request) {
+  const key = process.env.ADMIN_KEY;
+  const header = req.headers["x-admin-key"];
+  return Boolean(key) && header === key;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // --- Diagnostics: counts + masked DB info
+  app.get("/api/diag/stats", async (_req, res) => {
+    try {
+      const stats = await storage.getDataStats();
+      const dbUrl = process.env.DATABASE_URL || "";
+      let host = "unknown", dbname = "unknown";
+      try {
+        const u = new URL(dbUrl);
+        host = u.hostname;
+        dbname = u.pathname.replace(/^\//, "");
+      } catch {}
+      res.json({
+        stats,
+        env: {
+          nodeEnv: process.env.NODE_ENV,
+          seedForce: process.env.SEED_FORCE,
+          seedOnStart: process.env.SEED_ON_START,
+          dbHost: host,
+          dbName: dbname,
+        },
+        meta: {
+          hostname: os.hostname(),
+          now: new Date().toISOString(),
+        }
+      });
+    } catch (e) {
+      res.status(500).json({ error: "diag_failed" });
+    }
+  });
+
+  app.post("/api/admin/seed-now", async (req, res) => {
+    if (!checkAdminAuth(req)) {
+      return res.status(403).json({ error: "forbidden" });
+    }
+    process.env.SEED_FORCE = "1";
+    await seedIfEmpty();
+    process.env.SEED_FORCE = undefined;
+    const stats = await storage.getDataStats();
+    res.json({ ok: true, stats });
+  });
+
   // Shopping list endpoints
   app.post("/api/shopping-lists", async (req: Request, res: Response) => {
     try {
