@@ -1,0 +1,170 @@
+Replit Agent — Fix published app seeding (force-correct, verify, redeploy)
+
+Goal: The published deployment should always show mock stores/items/prices. Add a diagnostics endpoint, fix the seed condition, make the seed callable on demand, verify the deployment secrets, and republish.
+
+1) Patch the seed condition + add strong logs
+
+Edit server/seed.ts:
+
+Change the seed predicate to run if any core table is empty (OR), and allow a one-time override via SEED_FORCE=1.
+
+Add before/after logs so we can see counts in deployment logs.
+
+// server/seed.ts (only edit the seed predicate + logs)
+export async function seedIfEmpty() {
+  const stats = await storage.getDataStats();
+
+  // BEFORE LOG
+  console.log(`[seed] BEFORE counts stores=${stats.storeCount}, items=${stats.itemCount}, prices=${stats.priceCount}`);
+
+  // FIX: seed if ANY are empty, or when SEED_FORCE=1
+  const needsSeed =
+    process.env.SEED_FORCE === "1" ||
+    stats.storeCount === 0 ||
+    stats.itemCount === 0 ||
+    stats.priceCount === 0;
+
+  if (!needsSeed) {
+    console.log("[seed] Skipping — database already populated.");
+    return;
+  }
+
+  console.log("[seed] Seeding mock data…");
+
+  // ... existing insert logic stays the same ...
+
+  const after = await storage.getDataStats();
+  console.log(`[seed] AFTER counts stores=${after.storeCount}, items=${after.itemCount}, prices=${after.priceCount}`);
+}
+
+
+If a previous edit used the stricter && (AND) check, this change ensures seeding still happens when any required table is empty.
+
+2) Wire seedIfEmpty() into boot and await it
+
+Edit server/index.ts:
+
+Import and call seedIfEmpty() before registering routes and await it.
+
+// at top
+import { seedIfEmpty } from "./seed";
+
+// inside the top-level async IIFE, BEFORE registerRoutes(app)
+await seedIfEmpty();
+
+
+This must run on both dev and deployment builds. Keep it unconditional; it’s idempotent and fast after first seed. (You already added the import/call? Confirm it’s truly awaited before registerRoutes(app).)
+
+3) Add a diagnostics endpoint to confirm prod DB + counts
+
+Edit server/routes.ts: add this endpoint (near the top-level route registrations):
+
+import os from "os";
+
+// --- Diagnostics: counts + masked DB info
+app.get("/api/diag/stats", async (_req, res) => {
+  try {
+    const stats = await storage.getDataStats();
+    const dbUrl = process.env.DATABASE_URL || "";
+    let host = "unknown", dbname = "unknown";
+    try {
+      const u = new URL(dbUrl);
+      host = u.hostname;
+      dbname = u.pathname.replace(/^\//, "");
+    } catch {}
+    res.json({
+      stats,
+      env: {
+        nodeEnv: process.env.NODE_ENV,
+        seedForce: process.env.SEED_FORCE,
+        seedOnStart: process.env.SEED_ON_START,
+        dbHost: host,
+        dbName: dbname,
+      },
+      meta: {
+        hostname: os.hostname(),
+        now: new Date().toISOString(),
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ error: "diag_failed" });
+  }
+});
+
+4) Add a guarded, on-demand seed endpoint
+
+Edit server/routes.ts: add a temporary admin route to force a reseed in deployment if needed. Guard it with an env key.
+
+import crypto from "crypto";
+
+function checkAdminAuth(req: Request) {
+  const key = process.env.ADMIN_KEY;
+  const header = req.headers["x-admin-key"];
+  return Boolean(key) && header === key;
+}
+
+app.post("/api/admin/seed-now", async (req, res) => {
+  if (!checkAdminAuth(req)) {
+    return res.status(403).json({ error: "forbidden" });
+  }
+  process.env.SEED_FORCE = "1";
+  await seedIfEmpty();
+  process.env.SEED_FORCE = undefined;
+  const stats = await storage.getDataStats();
+  res.json({ ok: true, stats });
+});
+
+
+We’ll remove this route after confirming production is healthy.
+
+5) Verify deployment secrets and republish
+
+In Deployments → Environment/Secrets, ensure these exist (and match dev):
+
+DATABASE_URL (Neon/PG URL used by server/db.ts)
+
+MAPBOX_ACCESS_TOKEN (or MAPBOX_TOKEN) if your store geocoder or distance endpoints are used
+
+ADMIN_KEY (choose a long random string for the temporary admin endpoint)
+
+Temporarily add SEED_FORCE=1 in Deployment environment for the next boot so seeding runs unconditionally once. After it seeds, remove SEED_FORCE again.
+
+Republish / Deploy. Watch logs for:
+
+[seed] BEFORE counts ...
+
+[seed] Seeding mock data…
+
+[seed] AFTER counts stores=3, items=10, prices=30 (counts approximate based on your mock set)
+
+6) Sanity checks (prod)
+
+Hit GET /api/diag/stats on the published domain; confirm non-zero counts and the expected DB host/name.
+
+Hit GET /api/stores and verify it returns 3 SF stores.
+
+If still empty, send a one-time POST to /api/admin/seed-now with header x-admin-key: <ADMIN_KEY> and recheck.
+
+7) Clean up (very important)
+
+Remove SEED_FORCE from Deployment secrets after success.
+
+Keep /api/diag/stats if useful. Remove /api/admin/seed-now or keep it hard-guarded for dev only.
+
+8) (Optional) Make seeding resilient to partial data
+
+If you want the seed to top up missing pieces rather than all-or-nothing:
+
+Before inserting a store/item, check by name to avoid duplicates.
+
+Before inserting a price, check for an existing row with the same (storeId, itemId) and skip or update.
+
+This keeps demo data consistent even if the DB is partially populated.
+
+Acceptance criteria
+
+Published link returns 3 stores from GET /api/stores.
+
+GET /api/diag/stats shows non-zero counts and the expected DB host/name.
+
+First boot after republish shows [seed] … logs; subsequent boots show Skipping — database already populated.
