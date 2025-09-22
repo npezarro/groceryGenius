@@ -6,7 +6,7 @@ import { db } from "./db";
 import { z } from "zod";
 import os from "os";
 import crypto from "crypto";
-import { seedIfEmpty } from "./seed";
+import { seed } from "./seed";
 
 // Mapbox integration
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
@@ -341,41 +341,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/diag/stats", async (_req, res) => {
     try {
       const stats = await storage.getDataStats();
-      const dbUrl = process.env.DATABASE_URL || "";
-      let host = "unknown", dbname = "unknown";
-      try {
-        const u = new URL(dbUrl);
-        host = u.hostname;
-        dbname = u.pathname.replace(/^\//, "");
-      } catch {}
-      res.json({
-        stats,
-        env: {
-          nodeEnv: process.env.NODE_ENV,
-          seedForce: process.env.SEED_FORCE,
-          seedOnStart: process.env.SEED_ON_START,
-          dbHost: host,
-          dbName: dbname,
-        },
-        meta: {
-          hostname: os.hostname(),
-          now: new Date().toISOString(),
-        }
-      });
-    } catch (e) {
-      res.status(500).json({ error: "diag_failed" });
+      res.json({ ok: true, stats });
+    } catch {
+      res.status(500).json({ ok: false, error: "diag_failed" });
     }
   });
 
+  function isAuthorized(req: any) {
+    const adminKey = process.env.ADMIN_KEY;
+    const header = req.headers["x-admin-key"];
+    return Boolean(adminKey) && header === adminKey;
+  }
+
   app.post("/api/admin/seed-now", async (req, res) => {
-    if (!checkAdminAuth(req)) {
-      return res.status(403).json({ error: "forbidden" });
+    if (!isAuthorized(req)) return res.status(403).json({ ok: false, error: "forbidden" });
+    try {
+      const result = await seed({ force: true });
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: "seed_failed" });
     }
-    process.env.SEED_FORCE = "1";
-    await seedIfEmpty();
-    process.env.SEED_FORCE = undefined;
-    const stats = await storage.getDataStats();
-    res.json({ ok: true, stats });
   });
 
   // Shopping list endpoints
