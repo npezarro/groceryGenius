@@ -9,13 +9,19 @@ import { mockStores, mockItems, mockPricesByStore } from "./mock-data";
  */
 export async function seedIfEmpty() {
   const stats = await storage.getDataStats();
+
+  // BEFORE LOG
+  console.log(`[seed] BEFORE counts stores=${stats.storeCount}, items=${stats.itemCount}, prices=${stats.priceCount}`);
+
+  // FIX: seed if ANY are empty, or when SEED_FORCE=1
   const needsSeed =
-    stats.storeCount === 0 &&
-    stats.itemCount === 0 &&
+    process.env.SEED_FORCE === "1" ||
+    stats.storeCount === 0 ||
+    stats.itemCount === 0 ||
     stats.priceCount === 0;
 
   if (!needsSeed) {
-    console.log("[seed] Existing data detected — skipping seed.");
+    console.log("[seed] Skipping — database already populated.");
     return;
   }
 
@@ -60,5 +66,5 @@ export async function seedIfEmpty() {
   await storage.importStoreItems(storeItems);
 
   const after = await storage.getDataStats();
-  console.log(`[seed] Done — stores: ${after.storeCount}, items: ${after.itemCount}, prices: ${after.priceCount}`);
+  console.log(`[seed] AFTER counts stores=${after.storeCount}, items=${after.itemCount}, prices=${after.priceCount}`);
 }
