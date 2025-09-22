@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { seedIfEmpty } from "./seed";
+import { seed } from "./seed";
 
 const app = express();
 app.use(express.json());
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 
 (async () => {
   // Ensure demo data exists for published deployments
-  await seedIfEmpty(); // idempotent; no-ops once data exists
+  await seed({ force: false }); // idempotent; no-ops once data exists
 
   const server = await registerRoutes(app);
 
