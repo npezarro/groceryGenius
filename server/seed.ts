@@ -1,46 +1,29 @@
 // server/seed.ts
 import { storage } from "./storage";
-import type { InsertPrice, Store, Item } from "@shared/schema";
+import type { InsertPrice } from "@shared/schema";
 import { mockStores, mockItems, mockPricesByStore } from "./mock-data";
 
-/**
- * Seed the database with mock data if the core tables are EMPTY.
- * Safe to call at every boot; no-ops once data exists.
- */
-export async function seedIfEmpty() {
+export async function seed({ force = false }: { force?: boolean } = {}) {
   const stats = await storage.getDataStats();
+  console.log(`[seed] BEFORE stores=${stats.storeCount}, items=${stats.itemCount}, prices=${stats.priceCount}`);
 
-  // BEFORE LOG
-  console.log(`[seed] BEFORE counts stores=${stats.storeCount}, items=${stats.itemCount}, prices=${stats.priceCount}`);
-
-  // FIX: seed if ANY are empty, or when SEED_FORCE=1
-  const needsSeed =
-    process.env.SEED_FORCE === "1" ||
-    stats.storeCount === 0 ||
-    stats.itemCount === 0 ||
-    stats.priceCount === 0;
-
+  const needsSeed = force || stats.storeCount === 0 || stats.itemCount === 0 || stats.priceCount === 0;
   if (!needsSeed) {
     console.log("[seed] Skipping — database already populated.");
-    return;
+    return { seeded: false, before: stats, after: stats };
   }
 
-  console.log("[seed] Seeding mock data…");
+  console.log(force ? "[seed] Force seeding mock data…" : "[seed] Seeding mock data…");
 
-  // Insert stores/items and keep their IDs by name for price linking
-  const createdStores: Store[] = [];
-  for (const s of mockStores) {
-    createdStores.push(await storage.createStore(s));
-  }
-  const createdItems: Item[] = [];
-  for (const i of mockItems) {
-    createdItems.push(await storage.createItem(i));
-  }
+  const createdStores = [];
+  for (const s of mockStores) createdStores.push(await storage.createStore(s));
+
+  const createdItems = [];
+  for (const i of mockItems) createdItems.push(await storage.createItem(i));
 
   const storeIdByName = Object.fromEntries(createdStores.map(s => [s.name, s.id]));
   const itemIdByName  = Object.fromEntries(createdItems.map(i => [i.name, i.id]));
 
-  // Build InsertPrice rows from name-based mapping
   const priceRows: InsertPrice[] = mockPricesByStore.map(p => ({
     storeId: storeIdByName[p.storeName],
     itemId:  itemIdByName[p.itemName],
@@ -59,12 +42,10 @@ export async function seedIfEmpty() {
 
   await storage.importPrices(priceRows);
 
-  // Mark all items in stock at all stores (simple demo behavior)
-  const storeItems = createdStores.flatMap(s =>
-    createdItems.map(i => ({ storeId: s.id, itemId: i.id, inStock: true }))
-  );
+  const storeItems = createdStores.flatMap(s => createdItems.map(i => ({ storeId: s.id, itemId: i.id, inStock: true })));
   await storage.importStoreItems(storeItems);
 
   const after = await storage.getDataStats();
-  console.log(`[seed] AFTER counts stores=${after.storeCount}, items=${after.itemCount}, prices=${after.priceCount}`);
+  console.log(`[seed] AFTER stores=${after.storeCount}, items=${after.itemCount}, prices=${after.priceCount}`);
+  return { seeded: true, before: stats, after };
 }
