@@ -1,0 +1,301 @@
+Replit Agent — Make “Load Test Data Prices” work (top-up seeding per table)
+
+Goal: When clicking “Load Test Data Prices,” seed prices even if stores or items are missing. Add a robust top-up seeding API with mode=stores|items|prices|all and update the UI buttons to call it. Messages should reflect what was actually inserted.
+
+1) Replace seed helper with top-up seeding
+
+Edit server/seed.ts — create per-table “ensure” functions and a controller that runs dependencies in order. Use existing storage methods; if a helper is missing (e.g., findStoreByName), implement it or do a simple in-memory map after listing. Keep inserts idempotent by checking existence (by name) before insert. If your DB has unique constraints, swallow duplicate errors.
+
+// server/seed.ts
+import { storage } from "./storage";
+import type { InsertPrice } from "@shared/schema";
+import { mockStores, mockItems, mockPricesByStore } from "./mock-data";
+
+export type SeedMode = "stores" | "items" | "prices" | "all";
+type Counts = { storeCount: number; itemCount: number; priceCount: number };
+type Result = {
+  ok: true;
+  seeded: boolean;
+  inserted: { stores: number; items: number; prices: number; storeItems: number };
+  before: Counts;
+  after: Counts;
+  message: string;
+};
+
+async function getCounts(): Promise<Counts> {
+  const s = await storage.getDataStats();
+  return { storeCount: s.storeCount, itemCount: s.itemCount, priceCount: s.priceCount };
+}
+
+// Helpers to fetch existing by name — adapt to your storage API
+async function mapStoreIdsByName(): Promise<Record<string, string>> {
+  const all = await storage.listStores?.() ?? [];
+  return Object.fromEntries(all.map((s: any) => [s.name, s.id]));
+}
+async function mapItemIdsByName(): Promise<Record<string, string>> {
+  const all = await storage.listItems?.() ?? [];
+  return Object.fromEntries(all.map((i: any) => [i.name, i.id]));
+}
+
+async function ensureStores(): Promise<number> {
+  const existing = await mapStoreIdsByName();
+  let inserted = 0;
+  for (const s of mockStores) {
+    if (!existing[s.name]) {
+      const created = await storage.createStore(s);
+      existing[s.name] = created.id;
+      inserted++;
+    }
+  }
+  return inserted;
+}
+
+async function ensureItems(): Promise<number> {
+  const existing = await mapItemIdsByName();
+  let inserted = 0;
+  for (const i of mockItems) {
+    if (!existing[i.name]) {
+      const created = await storage.createItem(i);
+      existing[i.name] = created.id;
+      inserted++;
+    }
+  }
+  return inserted;
+}
+
+async function ensurePrices(force = false): Promise<{ prices: number; storeItems: number }> {
+  // Make sure we can resolve names to IDs
+  const storeIdByName = await mapStoreIdsByName();
+  const itemIdByName = await mapItemIdsByName();
+
+  const toInsert: InsertPrice[] = [];
+  const missingPairs: Array<{ storeId: string; itemId: string }> = [];
+
+  // If you have a way to check for an existing price by (storeId,itemId), use it.
+  // Otherwise rely on a UNIQUE constraint or let import skip duplicates.
+  for (const p of mockPricesByStore) {
+    const storeId = storeIdByName[p.storeName];
+    const itemId  = itemIdByName[p.itemName];
+    if (!storeId || !itemId) continue; // dependency not satisfied; caller should have run ensureStores/ensureItems
+
+    const row: InsertPrice = {
+      storeId,
+      itemId,
+      price: String(p.price),
+      unit: p.unit,
+      quantity: p.quantity != null ? String(p.quantity) : undefined,
+      priceType: p.priceType,
+      isPromotion: p.isPromotion ?? false,
+      originalPrice: p.originalPrice != null ? String(p.originalPrice) : undefined,
+      promotionText: p.promotionText,
+      promotionStartDate: p.promotionStartDate,
+      promotionEndDate: p.promotionEndDate,
+      memberPrice: p.memberPrice != null ? String(p.memberPrice) : undefined,
+      loyaltyRequired: p.loyaltyRequired ?? false
+    };
+
+    // If you can query existing prices, skip unless force===true
+    // Example (pseudo):
+    // const exists = await storage.hasPrice(storeId, itemId);
+    // if (!exists || force) toInsert.push(row);
+    toInsert.push(row);
+    missingPairs.push({ storeId, itemId });
+  }
+
+  let pricesInserted = 0;
+  if (toInsert.length) {
+    const res = await storage.importPrices(toInsert);
+    // If importPrices returns inserted count, use it; else approximate:
+    pricesInserted = Array.isArray(res) ? res.length : toInsert.length;
+  }
+
+  // Mark all seeded items in stock at the corresponding stores
+  // storage.importStoreItems([{ storeId, itemId, inStock: true }, ...])
+  let storeItemsInserted = 0;
+  if (storage.importStoreItems) {
+    const payload = missingPairs.map(({ storeId, itemId }) => ({ storeId, itemId, inStock: true }));
+    if (payload.length) {
+      const r = await storage.importStoreItems(payload);
+      storeItemsInserted = Array.isArray(r) ? r.length : payload.length;
+    }
+  }
+
+  return { prices: pricesInserted, storeItems: storeItemsInserted };
+}
+
+/**
+ * Top-up seeding controller. Ensures dependencies:
+ * prices => items => stores (run in this order: stores, items, prices).
+ */
+export async function seedTopUp(mode: SeedMode = "all", force = false): Promise<Result> {
+  const before = await getCounts();
+  console.log(`[seed] BEFORE stores=${before.storeCount} items=${before.itemCount} prices=${before.priceCount} mode=${mode} force=${force}`);
+
+  let storesInserted = 0, itemsInserted = 0, pricesInserted = 0, storeItemsInserted = 0;
+
+  const needStores = mode === "stores" || mode === "all" || mode === "prices" || mode === "items";
+  const needItems  = mode === "items"  || mode === "all" || mode === "prices";
+  const needPrices = mode === "prices" || mode === "all";
+
+  if (needStores) storesInserted += await ensureStores();
+  if (needItems)  itemsInserted  += await ensureItems();
+  if (needPrices) {
+    const r = await ensurePrices(force);
+    pricesInserted += r.prices;
+    storeItemsInserted += r.storeItems;
+  }
+
+  const after = await getCounts();
+  const seeded = (storesInserted + itemsInserted + pricesInserted + storeItemsInserted) > 0;
+
+  const message = seeded
+    ? `Inserted stores=${storesInserted}, items=${itemsInserted}, prices=${pricesInserted}`
+    : `No changes (already present for mode=${mode}).`;
+
+  console.log(`[seed] AFTER  stores=${after.storeCount} items=${after.itemCount} prices=${after.priceCount} :: ${message}`);
+
+  return { ok: true, seeded, inserted: { stores: storesInserted, items: itemsInserted, prices: pricesInserted, storeItems: storeItemsInserted }, before, after, message };
+}
+
+2) Wire top-up seeding into boot (keeps current behavior)
+
+Edit server/index.ts — call once on boot (non-blocking for you later):
+
+import { seedTopUp } from "./seed";
+// …
+(async () => {
+  await seedTopUp("all", false); // harmless after first success
+  const server = await registerRoutes(app);
+  // …
+})();
+
+3) Replace admin routes: add mode and force support
+
+Edit your routes (e.g., server/routes.ts). Replace the previous admin seeding route with a parameterized one that supports mode and force. Keep your existing x-admin-key guard.
+
+import { seedTopUp, type SeedMode } from "./seed";
+import { storage } from "./storage";
+
+function isAuthorized(req: any) {
+  const adminKey = process.env.ADMIN_KEY;
+  const header = req.headers["x-admin-key"];
+  return Boolean(adminKey) && header === adminKey;
+}
+
+app.post("/api/admin/seed", async (req, res) => {
+  if (!isAuthorized(req)) return res.status(403).json({ ok: false, error: "forbidden" });
+
+  // Accept mode via query (?mode=prices) or JSON body { mode, force }
+  const modeQ = (req.query?.mode as string)?.toLowerCase();
+  const body = typeof req.body === "object" ? req.body : {};
+  const mode: SeedMode = (body.mode || modeQ || "all") as SeedMode;
+  const force = (body.force ?? req.query?.force === "1") ? true : false;
+
+  try {
+    const result = await seedTopUp(mode, force);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: "seed_failed" });
+  }
+});
+
+// Optional diagnostics (unchanged if you already added it)
+app.get("/api/diag/stats", async (_req, res) => {
+  try {
+    const stats = await storage.getDataStats();
+    res.json({ ok: true, stats });
+  } catch {
+    res.status(500).json({ ok: false, error: "diag_failed" });
+  }
+});
+
+4) Update the bottom bar UI to call the new route with mode
+
+Edit client/src/components/LoadTestDataBar.tsx — add three buttons that call POST /api/admin/seed?mode=stores|items|prices with the x-admin-key. Show real insert counts and refresh stats.
+
+// client/src/components/LoadTestDataBar.tsx
+import { useEffect, useState } from "react";
+type Stats = { storeCount: number; itemCount: number; priceCount: number };
+
+async function callSeed(mode: "stores"|"items"|"prices"|"all", adminKey: string) {
+  const r = await fetch(`/api/admin/seed?mode=${mode}`, { method: "POST", headers: { "x-admin-key": adminKey } });
+  return r.json();
+}
+
+export default function LoadTestDataBar() {
+  const [adminKey, setAdminKey] = useState<string>(() => sessionStorage.getItem("adminKey") || "");
+  const [loading, setLoading] = useState<string | null>(null);
+  const [message, setMessage] = useState<string>("");
+  const [stats, setStats] = useState<Stats | null>(null);
+
+  async function refreshStats() {
+    const r = await fetch("/api/diag/stats");
+    const j = await r.json();
+    if (j.ok) setStats(j.stats);
+  }
+  useEffect(() => { refreshStats(); }, []);
+
+  async function onClick(mode: "stores"|"items"|"prices"|"all") {
+    if (!adminKey) { setMessage("Enter admin key."); return; }
+    setLoading(mode); setMessage("");
+    sessionStorage.setItem("adminKey", adminKey);
+    try {
+      const j = await callSeed(mode, adminKey);
+      if (j.ok === false) {
+        setMessage(j.error || "Seed failed");
+      } else {
+        setMessage(j.message || "Done.");
+      }
+      await refreshStats();
+    } catch {
+      setMessage("Network error.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  const btnStyle: React.CSSProperties = { padding: "8px 10px", border: "1px solid #333", borderRadius: 8, background: "#fff", fontWeight: 600 };
+
+  return (
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, display: "flex", gap: 8, alignItems: "center", padding: "10px 12px", borderTop: "1px solid rgba(0,0,0,0.1)", background: "rgba(255,255,255,0.95)", backdropFilter: "saturate(180%) blur(6px)", zIndex: 1000 }}>
+      <strong>Admin:</strong>
+      <input type="password" placeholder="Admin key" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} style={{ flex: "0 1 240px", padding: 8, border: "1px solid #ddd", borderRadius: 6 }} />
+      <button onClick={() => onClick("stores")} disabled={loading !== null} style={btnStyle}>{loading==="stores"?"…" :"Load Stores"}</button>
+      <button onClick={() => onClick("items")}  disabled={loading !== null} style={btnStyle}>{loading==="items" ?"…" :"Load Items"}</button>
+      <button onClick={() => onClick("prices")} disabled={loading !== null} style={btnStyle}>{loading==="prices"?"…" :"Load Prices"}</button>
+      <button onClick={() => onClick("all")}    disabled={loading !== null} style={btnStyle}>{loading==="all"   ?"…" :"Load All"}</button>
+      <div style={{ marginLeft: "auto", fontSize: 12 }}>
+        {stats ? `Stores: ${stats.storeCount} • Items: ${stats.itemCount} • Prices: ${stats.priceCount}` : "—"}
+        {message ? `  —  ${message}` : ""}
+      </div>
+    </div>
+  );
+}
+
+5) Secrets and acceptance
+
+Ensure ADMIN_KEY is set in Replit Secrets (dev and deployment).
+
+Click Load Prices on the published site:
+
+If items/stores are missing, they’ll be topped up automatically (because mode=prices triggers ensureStores and ensureItems first).
+
+Status message shows actual inserts, e.g., Inserted stores=0, items=10, prices=30.
+
+Counts update from Stores: 5 • Items: 0 • Prices: 0 to non-zero across all three.
+
+6) Optional: “force” updates for prices
+
+If you want “Load Prices” to overwrite/refresh existing price rows:
+
+Call /api/admin/seed?mode=prices&force=1 from the button (or send { force: true } in the body).
+
+In ensurePrices(force), implement “update on conflict” behavior if your storage supports it.
+
+Acceptance criteria
+
+“Load Test Data Prices” succeeds even when Items and Prices are 0 and Stores > 0.
+
+API returns precise insert counts and a truthful message (never “Database already populated” when Items/Prices are missing).
+
+Bottom bar updates counts immediately after each action.
