@@ -60,38 +60,51 @@ async function ensurePrices(force = false): Promise<{ prices: number; storeItems
   const storeIdByName = await mapStoreIdsByName();
   const itemIdByName = await mapItemIdsByName();
 
-  const toInsert: InsertPrice[] = [];
-  const missingPairs: Array<{ storeId: string; itemId: string }> = [];
-
-  // If you have a way to check for an existing price by (storeId,itemId), use it.
-  // Otherwise rely on a UNIQUE constraint or let import skip duplicates.
+  // Collect all potential store/item combinations from mock data
+  const potentialPairs: Array<{ storeId: string; itemId: string; data: any }> = [];
   for (const p of mockPricesByStore) {
     const storeId = storeIdByName[p.storeName];
     const itemId  = itemIdByName[p.itemName];
     if (!storeId || !itemId) continue; // dependency not satisfied; caller should have run ensureStores/ensureItems
+    potentialPairs.push({ storeId, itemId, data: p });
+  }
 
-    const row: InsertPrice = {
-      storeId,
-      itemId,
-      price: String(p.price),
-      unit: p.unit,
-      quantity: p.quantity != null ? String(p.quantity) : undefined,
-      priceType: p.priceType,
-      isPromotion: p.isPromotion ?? false,
-      originalPrice: p.originalPrice != null ? String(p.originalPrice) : undefined,
-      promotionText: p.promotionText,
-      promotionStartDate: p.promotionStartDate,
-      promotionEndDate: p.promotionEndDate,
-      memberPrice: p.memberPrice != null ? String(p.memberPrice) : undefined,
-      loyaltyRequired: p.loyaltyRequired ?? false
-    };
+  // Get existing price pairs to check for duplicates
+  const storeIds = [...new Set(potentialPairs.map(p => p.storeId))];
+  const itemIds = [...new Set(potentialPairs.map(p => p.itemId))];
+  const existingPairs = await storage.getExistingPricePairs(storeIds, itemIds);
+  
+  // Create a set for fast lookup of existing pairs
+  const existingPairSet = new Set(existingPairs.map(p => `${p.storeId}:${p.itemId}`));
 
-    // If you can query existing prices, skip unless force===true
-    // Example (pseudo):
-    // const exists = await storage.hasPrice(storeId, itemId);
-    // if (!exists || force) toInsert.push(row);
-    toInsert.push(row);
-    missingPairs.push({ storeId, itemId });
+  const toInsert: InsertPrice[] = [];
+  const missingPairs: Array<{ storeId: string; itemId: string }> = [];
+
+  for (const { storeId, itemId, data: p } of potentialPairs) {
+    const pairKey = `${storeId}:${itemId}`;
+    const exists = existingPairSet.has(pairKey);
+    
+    // Only insert if it doesn't exist OR if force=true
+    if (!exists || force) {
+      const row: InsertPrice = {
+        storeId,
+        itemId,
+        price: String(p.price),
+        unit: p.unit,
+        quantity: p.quantity != null ? String(p.quantity) : undefined,
+        priceType: p.priceType,
+        isPromotion: p.isPromotion ?? false,
+        originalPrice: p.originalPrice != null ? String(p.originalPrice) : undefined,
+        promotionText: p.promotionText,
+        promotionStartDate: p.promotionStartDate,
+        promotionEndDate: p.promotionEndDate,
+        memberPrice: p.memberPrice != null ? String(p.memberPrice) : undefined,
+        loyaltyRequired: p.loyaltyRequired ?? false
+      };
+      
+      toInsert.push(row);
+      missingPairs.push({ storeId, itemId });
+    }
   }
 
   let pricesInserted = 0;

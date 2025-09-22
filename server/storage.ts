@@ -30,6 +30,7 @@ export interface IStorage {
   getPricesForItems(itemIds: string[], storeIds?: string[]): Promise<Price[]>;
   getCheapestPricesForItems(itemIds: string[], storeIds?: string[], userHasMembership?: boolean): Promise<Price[]>;
   getPromotionalPrices(itemIds?: string[], storeIds?: string[]): Promise<Price[]>;
+  getExistingPricePairs(storeIds: string[], itemIds: string[]): Promise<Array<{storeId: string, itemId: string}>>;
   createPrice(price: InsertPrice): Promise<Price>;
   importPrices(prices: InsertPrice[]): Promise<void>;
 
@@ -203,6 +204,26 @@ export class DatabaseStorage implements IStorage {
         eq(prices.itemId, subquery.itemId),
         eq(effectivePriceExpression, subquery.minPrice)
       ));
+    
+    return result;
+  }
+
+  async getExistingPricePairs(storeIds: string[], itemIds: string[]): Promise<Array<{storeId: string, itemId: string}>> {
+    if (storeIds.length === 0 || itemIds.length === 0) {
+      return [];
+    }
+    
+    const result = await db.select({
+      storeId: prices.storeId,
+      itemId: prices.itemId
+    })
+    .from(prices)
+    .where(
+      and(
+        inArray(prices.storeId, storeIds),
+        inArray(prices.itemId, itemIds)
+      )
+    );
     
     return result;
   }
