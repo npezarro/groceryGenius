@@ -347,14 +347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  function isAuthorized(req: any) {
-    const adminKey = process.env.ADMIN_KEY;
-    const header = req.headers["x-admin-key"];
-    return Boolean(adminKey) && header === adminKey;
-  }
-
   app.post("/api/admin/seed-now", async (req, res) => {
-    if (!isAuthorized(req)) return res.status(403).json({ ok: false, error: "forbidden" });
     try {
       const result = await seed({ force: true });
       res.json({ ok: true, ...result });
