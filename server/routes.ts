@@ -6,7 +6,7 @@ import { db } from "./db";
 import { z } from "zod";
 import os from "os";
 import crypto from "crypto";
-import { seed } from "./seed";
+import { seedTopUp, type SeedMode } from "./seed";
 
 // Mapbox integration
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
@@ -347,10 +347,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/admin/seed-now", async (req, res) => {
+  function isAuthorized(req: any) {
+    const adminKey = process.env.ADMIN_KEY;
+    const header = req.headers["x-admin-key"];
+    return Boolean(adminKey) && header === adminKey;
+  }
+
+  app.post("/api/admin/seed", async (req, res) => {
+    if (!isAuthorized(req)) return res.status(403).json({ ok: false, error: "forbidden" });
+
+    // Accept mode via query (?mode=prices) or JSON body { mode, force }
+    const modeQ = (req.query?.mode as string)?.toLowerCase();
+    const body = typeof req.body === "object" ? req.body : {};
+    const mode: SeedMode = (body.mode || modeQ || "all") as SeedMode;
+    const force = (body.force ?? req.query?.force === "1") ? true : false;
+
     try {
-      const result = await seed({ force: true });
-      res.json({ ok: true, ...result });
+      const result = await seedTopUp(mode, force);
+      res.json(result);
     } catch (e) {
       res.status(500).json({ ok: false, error: "seed_failed" });
     }
