@@ -1,57 +1,150 @@
 // server/seed.ts
 import { storage } from "./storage";
-import type { InsertPrice, Store, Item } from "@shared/schema";
+import type { InsertPrice } from "@shared/schema";
 import { mockStores, mockItems, mockPricesByStore } from "./mock-data";
 
-export async function seed({ force = false }: { force?: boolean } = {}) {
-  const stats = await storage.getDataStats();
-  console.log(`[seed] BEFORE stores=${stats.storeCount}, items=${stats.itemCount}, prices=${stats.priceCount}`);
+export type SeedMode = "stores" | "items" | "prices" | "all";
+type Counts = { storeCount: number; itemCount: number; priceCount: number };
+type Result = {
+  ok: true;
+  seeded: boolean;
+  inserted: { stores: number; items: number; prices: number; storeItems: number };
+  before: Counts;
+  after: Counts;
+  message: string;
+};
 
-  // Check if mock data already exists by looking for our specific test stores
-  const existingStores = await storage.getAllStores();
-  const mockStoreNames = mockStores.map(s => s.name);
-  const hasMockData = mockStoreNames.some(name => existingStores.some(store => store.name === name));
+async function getCounts(): Promise<Counts> {
+  const s = await storage.getDataStats();
+  return { storeCount: s.storeCount, itemCount: s.itemCount, priceCount: s.priceCount };
+}
 
-  const needsSeed = (force || stats.storeCount === 0 || stats.itemCount === 0 || stats.priceCount === 0) && !hasMockData;
-  if (!needsSeed) {
-    const reason = hasMockData ? "mock data already exists" : "database already populated";
-    console.log(`[seed] Skipping — ${reason}.`);
-    return { seeded: false, before: stats, after: stats };
+// Helpers to fetch existing by name — adapt to your storage API
+async function mapStoreIdsByName(): Promise<Record<string, string>> {
+  const all = await storage.getAllStores();
+  return Object.fromEntries(all.map((s: any) => [s.name, s.id]));
+}
+async function mapItemIdsByName(): Promise<Record<string, string>> {
+  const all = await storage.getAllItems();
+  return Object.fromEntries(all.map((i: any) => [i.name, i.id]));
+}
+
+async function ensureStores(): Promise<number> {
+  const existing = await mapStoreIdsByName();
+  let inserted = 0;
+  for (const s of mockStores) {
+    if (!existing[s.name]) {
+      const created = await storage.createStore(s);
+      existing[s.name] = created.id;
+      inserted++;
+    }
+  }
+  return inserted;
+}
+
+async function ensureItems(): Promise<number> {
+  const existing = await mapItemIdsByName();
+  let inserted = 0;
+  for (const i of mockItems) {
+    if (!existing[i.name]) {
+      const created = await storage.createItem(i);
+      existing[i.name] = created.id;
+      inserted++;
+    }
+  }
+  return inserted;
+}
+
+async function ensurePrices(force = false): Promise<{ prices: number; storeItems: number }> {
+  // Make sure we can resolve names to IDs
+  const storeIdByName = await mapStoreIdsByName();
+  const itemIdByName = await mapItemIdsByName();
+
+  const toInsert: InsertPrice[] = [];
+  const missingPairs: Array<{ storeId: string; itemId: string }> = [];
+
+  // If you have a way to check for an existing price by (storeId,itemId), use it.
+  // Otherwise rely on a UNIQUE constraint or let import skip duplicates.
+  for (const p of mockPricesByStore) {
+    const storeId = storeIdByName[p.storeName];
+    const itemId  = itemIdByName[p.itemName];
+    if (!storeId || !itemId) continue; // dependency not satisfied; caller should have run ensureStores/ensureItems
+
+    const row: InsertPrice = {
+      storeId,
+      itemId,
+      price: String(p.price),
+      unit: p.unit,
+      quantity: p.quantity != null ? String(p.quantity) : undefined,
+      priceType: p.priceType,
+      isPromotion: p.isPromotion ?? false,
+      originalPrice: p.originalPrice != null ? String(p.originalPrice) : undefined,
+      promotionText: p.promotionText,
+      promotionStartDate: p.promotionStartDate,
+      promotionEndDate: p.promotionEndDate,
+      memberPrice: p.memberPrice != null ? String(p.memberPrice) : undefined,
+      loyaltyRequired: p.loyaltyRequired ?? false
+    };
+
+    // If you can query existing prices, skip unless force===true
+    // Example (pseudo):
+    // const exists = await storage.hasPrice(storeId, itemId);
+    // if (!exists || force) toInsert.push(row);
+    toInsert.push(row);
+    missingPairs.push({ storeId, itemId });
   }
 
-  console.log(force ? "[seed] Force seeding mock data…" : "[seed] Seeding mock data…");
+  let pricesInserted = 0;
+  if (toInsert.length) {
+    const res = await storage.importPrices(toInsert);
+    // If importPrices returns inserted count, use it; else approximate:
+    pricesInserted = Array.isArray(res) ? res.length : toInsert.length;
+  }
 
-  const createdStores: Store[] = [];
-  for (const s of mockStores) createdStores.push(await storage.createStore(s));
+  // Mark all seeded items in stock at the corresponding stores
+  // storage.importStoreItems([{ storeId, itemId, inStock: true }, ...])
+  let storeItemsInserted = 0;
+  if (storage.importStoreItems) {
+    const payload = missingPairs.map(({ storeId, itemId }) => ({ storeId, itemId, inStock: true }));
+    if (payload.length) {
+      const r = await storage.importStoreItems(payload);
+      storeItemsInserted = Array.isArray(r) ? r.length : payload.length;
+    }
+  }
 
-  const createdItems: Item[] = [];
-  for (const i of mockItems) createdItems.push(await storage.createItem(i));
+  return { prices: pricesInserted, storeItems: storeItemsInserted };
+}
 
-  const storeIdByName = Object.fromEntries(createdStores.map(s => [s.name, s.id]));
-  const itemIdByName  = Object.fromEntries(createdItems.map(i => [i.name, i.id]));
+/**
+ * Top-up seeding controller. Ensures dependencies:
+ * prices => items => stores (run in this order: stores, items, prices).
+ */
+export async function seedTopUp(mode: SeedMode = "all", force = false): Promise<Result> {
+  const before = await getCounts();
+  console.log(`[seed] BEFORE stores=${before.storeCount} items=${before.itemCount} prices=${before.priceCount} mode=${mode} force=${force}`);
 
-  const priceRows: InsertPrice[] = mockPricesByStore.map(p => ({
-    storeId: storeIdByName[p.storeName],
-    itemId:  itemIdByName[p.itemName],
-    price: String(p.price),
-    unit: p.unit,
-    quantity: p.quantity != null ? String(p.quantity) : undefined,
-    priceType: p.priceType,
-    isPromotion: p.isPromotion ?? false,
-    originalPrice: p.originalPrice != null ? String(p.originalPrice) : undefined,
-    promotionText: p.promotionText,
-    promotionStartDate: p.promotionStartDate,
-    promotionEndDate: p.promotionEndDate,
-    memberPrice: p.memberPrice != null ? String(p.memberPrice) : undefined,
-    loyaltyRequired: p.loyaltyRequired ?? false
-  }));
+  let storesInserted = 0, itemsInserted = 0, pricesInserted = 0, storeItemsInserted = 0;
 
-  await storage.importPrices(priceRows);
+  const needStores = mode === "stores" || mode === "all" || mode === "prices" || mode === "items";
+  const needItems  = mode === "items"  || mode === "all" || mode === "prices";
+  const needPrices = mode === "prices" || mode === "all";
 
-  const storeItems = createdStores.flatMap(s => createdItems.map(i => ({ storeId: s.id, itemId: i.id, inStock: true })));
-  await storage.importStoreItems(storeItems);
+  if (needStores) storesInserted += await ensureStores();
+  if (needItems)  itemsInserted  += await ensureItems();
+  if (needPrices) {
+    const r = await ensurePrices(force);
+    pricesInserted += r.prices;
+    storeItemsInserted += r.storeItems;
+  }
 
-  const after = await storage.getDataStats();
-  console.log(`[seed] AFTER stores=${after.storeCount}, items=${after.itemCount}, prices=${after.priceCount}`);
-  return { seeded: true, before: stats, after };
+  const after = await getCounts();
+  const seeded = (storesInserted + itemsInserted + pricesInserted + storeItemsInserted) > 0;
+
+  const message = seeded
+    ? `Inserted stores=${storesInserted}, items=${itemsInserted}, prices=${pricesInserted}`
+    : `No changes (already present for mode=${mode}).`;
+
+  console.log(`[seed] AFTER  stores=${after.storeCount} items=${after.itemCount} prices=${after.priceCount} :: ${message}`);
+
+  return { ok: true, seeded, inserted: { stores: storesInserted, items: itemsInserted, prices: pricesInserted, storeItems: storeItemsInserted }, before, after, message };
 }
