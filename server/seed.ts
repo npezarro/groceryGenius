@@ -7,9 +7,15 @@ export async function seed({ force = false }: { force?: boolean } = {}) {
   const stats = await storage.getDataStats();
   console.log(`[seed] BEFORE stores=${stats.storeCount}, items=${stats.itemCount}, prices=${stats.priceCount}`);
 
-  const needsSeed = force || stats.storeCount === 0 || stats.itemCount === 0 || stats.priceCount === 0;
+  // Check if mock data already exists by looking for our specific test stores
+  const existingStores = await storage.getAllStores();
+  const mockStoreNames = mockStores.map(s => s.name);
+  const hasMockData = mockStoreNames.some(name => existingStores.some(store => store.name === name));
+
+  const needsSeed = (force || stats.storeCount === 0 || stats.itemCount === 0 || stats.priceCount === 0) && !hasMockData;
   if (!needsSeed) {
-    console.log("[seed] Skipping — database already populated.");
+    const reason = hasMockData ? "mock data already exists" : "database already populated";
+    console.log(`[seed] Skipping — ${reason}.`);
     return { seeded: false, before: stats, after: stats };
   }
 
