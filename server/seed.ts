@@ -1,6 +1,6 @@
 // server/seed.ts
 import { storage } from "./storage";
-import type { InsertPrice } from "@shared/schema";
+import type { InsertPrice, Store, Item } from "@shared/schema";
 import { mockStores, mockItems, mockPricesByStore } from "./mock-data";
 
 export async function seed({ force = false }: { force?: boolean } = {}) {
@@ -15,10 +15,10 @@ export async function seed({ force = false }: { force?: boolean } = {}) {
 
   console.log(force ? "[seed] Force seeding mock data…" : "[seed] Seeding mock data…");
 
-  const createdStores = [];
+  const createdStores: Store[] = [];
   for (const s of mockStores) createdStores.push(await storage.createStore(s));
 
-  const createdItems = [];
+  const createdItems: Item[] = [];
   for (const i of mockItems) createdItems.push(await storage.createItem(i));
 
   const storeIdByName = Object.fromEntries(createdStores.map(s => [s.name, s.id]));
