@@ -1,0 +1,242 @@
+Goal: When the project boots (locally and on the published deployment), automatically seed mock stores/items/prices only if the database is empty, so the published link is always demo-able.
+
+1) Add mock data + seed helper
+
+Create two files: server/mock-data.ts and server/seed.ts. Use the code below as-is. If your storage method names differ, adapt to the existing storage API (keep the overall behavior/shape).
+
+File: server/mock-data.ts
+
+// server/mock-data.ts
+import type { InsertStore, InsertItem } from "@shared/schema";
+
+// 3 SF stores with coordinates so distance/radius logic works out of the box
+export const mockStores: InsertStore[] = [
+  {
+    name: "Trader Joe's — Stonestown",
+    address: "501 Buckingham Way, San Francisco, CA 94132",
+    lat: 37.7289,
+    lng: -122.4769,
+    hoursJson: { mon_fri: "8am–9pm", sat_sun: "8am–9pm" }
+  },
+  {
+    name: "Safeway — Market St",
+    address: "2020 Market St, San Francisco, CA 94114",
+    lat: 37.7693,
+    lng: -122.4280,
+    hoursJson: { daily: "6am–11pm" }
+  },
+  {
+    name: "Whole Foods — SoMa",
+    address: "399 4th St, San Francisco, CA 94107",
+    lat: 37.7806,
+    lng: -122.4007,
+    hoursJson: { daily: "8am–10pm" }
+  }
+];
+
+export const mockItems: InsertItem[] = [
+  { name: "Milk", descriptor: "1 gallon", unit: "gallon" },
+  { name: "Eggs", descriptor: "12 count", unit: "dozen" },
+  { name: "Bread", descriptor: "loaf", unit: "loaf" },
+  { name: "Bananas", descriptor: "per lb", unit: "lb", organicConventional: "conventional" },
+  { name: "Chicken breast", descriptor: "per lb", unit: "lb" },
+  { name: "Rice", descriptor: "2 lb bag", unit: "lb" },
+  { name: "Pasta", descriptor: "1 lb", unit: "lb" },
+  { name: "Tomatoes", descriptor: "per lb", unit: "lb" },
+  { name: "Cheddar cheese", descriptor: "8 oz", unit: "oz" },
+  { name: "Coffee", descriptor: "12 oz beans", unit: "oz" }
+];
+
+// A compact shape so we can map by names after insert
+export type MockPriceRow = {
+  storeName: string;
+  itemName: string;
+  price: number;
+  unit?: string;
+  quantity?: number;
+  priceType?: string;
+  isPromotion?: boolean;
+  originalPrice?: number;
+  promotionText?: string;
+  promotionStartDate?: Date;
+  promotionEndDate?: Date;
+  memberPrice?: number;
+  loyaltyRequired?: boolean;
+};
+
+const now = new Date();
+const inTwoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+export const mockPricesByStore: MockPriceRow[] = [
+  // Trader Joe's — budget baseline
+  { storeName: "Trader Joe's — Stonestown", itemName: "Milk", price: 4.49, unit: "gallon" },
+  { storeName: "Trader Joe's — Stonestown", itemName: "Eggs", price: 2.99, unit: "dozen" },
+  { storeName: "Trader Joe's — Stonestown", itemName: "Bread", price: 2.99, unit: "loaf" },
+  { storeName: "Trader Joe's — Stonestown", itemName: "Bananas", price: 0.69, unit: "lb", quantity: 1 },
+  { storeName: "Trader Joe's — Stonestown", itemName: "Chicken breast", price: 4.99, unit: "lb", quantity: 1 },
+  { storeName: "Trader Joe's — Stonestown", itemName: "Rice", price: 1.49, unit: "lb", quantity: 2 },
+  { storeName: "Trader Joe's — Stonestown", itemName: "Pasta", price: 1.29, unit: "lb", quantity: 1 },
+  { storeName: "Trader Joe's — Stonestown", itemName: "Tomatoes", price: 1.99, unit: "lb", quantity: 1 },
+  { storeName: "Trader Joe's — Stonestown", itemName: "Cheddar cheese", price: 3.49, unit: "oz", quantity: 8 },
+  { storeName: "Trader Joe's — Stonestown", itemName: "Coffee", price: 8.99, unit: "oz", quantity: 12 },
+
+  // Safeway — promo + club/member pricing
+  { storeName: "Safeway — Market St", itemName: "Milk", price: 5.49, unit: "gallon" },
+  { storeName: "Safeway — Market St", itemName: "Eggs", price: 2.99, unit: "dozen", isPromotion: true, originalPrice: 4.49, promotionText: "Club Price", promotionStartDate: now, promotionEndDate: inTwoWeeks, loyaltyRequired: true },
+  { storeName: "Safeway — Market St", itemName: "Bread", price: 3.99, unit: "loaf" },
+  { storeName: "Safeway — Market St", itemName: "Bananas", price: 0.79, unit: "lb", quantity: 1 },
+  { storeName: "Safeway — Market St", itemName: "Chicken breast", price: 5.99, unit: "lb", quantity: 1 },
+  { storeName: "Safeway — Market St", itemName: "Rice", price: 1.29, unit: "lb", quantity: 2 },
+  { storeName: "Safeway — Market St", itemName: "Pasta", price: 1.49, unit: "lb", quantity: 1 },
+  { storeName: "Safeway — Market St", itemName: "Tomatoes", price: 2.49, unit: "lb", quantity: 1 },
+  { storeName: "Safeway — Market St", itemName: "Cheddar cheese", price: 3.99, unit: "oz", quantity: 8, memberPrice: 3.49, loyaltyRequired: true },
+  { storeName: "Safeway — Market St", itemName: "Coffee", price: 9.99, unit: "oz", quantity: 12 },
+
+  // Whole Foods — member price (Prime) scenario
+  { storeName: "Whole Foods — SoMa", itemName: "Milk", price: 5.99, unit: "gallon", memberPrice: 4.99, loyaltyRequired: true },
+  { storeName: "Whole Foods — SoMa", itemName: "Eggs", price: 4.99, unit: "dozen" },
+  { storeName: "Whole Foods — SoMa", itemName: "Bread", price: 4.49, unit: "loaf" },
+  { storeName: "Whole Foods — SoMa", itemName: "Bananas", price: 0.69, unit: "lb", quantity: 1 },
+  { storeName: "Whole Foods — SoMa", itemName: "Chicken breast", price: 6.99, unit: "lb", quantity: 1 },
+  { storeName: "Whole Foods — SoMa", itemName: "Rice", price: 1.79, unit: "lb", quantity: 2 },
+  { storeName: "Whole Foods — SoMa", itemName: "Pasta", price: 1.79, unit: "lb", quantity: 1 },
+  { storeName: "Whole Foods — SoMa", itemName: "Tomatoes", price: 2.99, unit: "lb", quantity: 1 },
+  { storeName: "Whole Foods — SoMa", itemName: "Cheddar cheese", price: 4.49, unit: "oz", quantity: 8 },
+  { storeName: "Whole Foods — SoMa", itemName: "Coffee", price: 12.49, unit: "oz", quantity: 12 }
+];
+
+
+File: server/seed.ts
+
+// server/seed.ts
+import { storage } from "./storage";
+import type { InsertPrice } from "@shared/schema";
+import { mockStores, mockItems, mockPricesByStore } from "./mock-data";
+
+/**
+ * Seed the database with mock data if the core tables are EMPTY.
+ * Safe to call at every boot; no-ops once data exists.
+ */
+export async function seedIfEmpty() {
+  const stats = await storage.getDataStats();
+  const needsSeed =
+    stats.storeCount === 0 &&
+    stats.itemCount === 0 &&
+    stats.priceCount === 0;
+
+  if (!needsSeed) {
+    console.log("[seed] Existing data detected — skipping seed.");
+    return;
+  }
+
+  console.log("[seed] Seeding mock data…");
+
+  // Insert stores/items and keep their IDs by name for price linking
+  const createdStores = [];
+  for (const s of mockStores) {
+    createdStores.push(await storage.createStore(s));
+  }
+  const createdItems = [];
+  for (const i of mockItems) {
+    createdItems.push(await storage.createItem(i));
+  }
+
+  const storeIdByName = Object.fromEntries(createdStores.map(s => [s.name, s.id]));
+  const itemIdByName  = Object.fromEntries(createdItems.map(i => [i.name, i.id]));
+
+  // Build InsertPrice rows from name-based mapping
+  const priceRows: InsertPrice[] = mockPricesByStore.map(p => ({
+    storeId: storeIdByName[p.storeName],
+    itemId:  itemIdByName[p.itemName],
+    price: String(p.price),
+    unit: p.unit,
+    quantity: p.quantity != null ? String(p.quantity) : undefined,
+    priceType: p.priceType,
+    isPromotion: p.isPromotion ?? false,
+    originalPrice: p.originalPrice != null ? String(p.originalPrice) : undefined,
+    promotionText: p.promotionText,
+    promotionStartDate: p.promotionStartDate,
+    promotionEndDate: p.promotionEndDate,
+    memberPrice: p.memberPrice != null ? String(p.memberPrice) : undefined,
+    loyaltyRequired: p.loyaltyRequired ?? false
+  }));
+
+  await storage.importPrices(priceRows);
+
+  // Mark all items in stock at all stores (simple demo behavior)
+  const storeItems = createdStores.flatMap(s =>
+    createdItems.map(i => ({ storeId: s.id, itemId: i.id, inStock: true }))
+  );
+  await storage.importStoreItems(storeItems);
+
+  const after = await storage.getDataStats();
+  console.log(`[seed] Done — stores: ${after.storeCount}, items: ${after.itemCount}, prices: ${after.priceCount}`);
+}
+
+2) Wire the seed into server startup
+
+Open server/index.ts and do two edits:
+
+Add import at the top with other imports:
+
+import { seedIfEmpty } from "./seed";
+
+
+Invoke it inside your top-level async IIFE before route registration:
+
+(async () => {
+  // Ensure demo data exists for published deployments
+  await seedIfEmpty(); // idempotent; no-ops once data exists
+
+  const server = await registerRoutes(app);
+  // ... existing code
+})();
+
+
+(If you prefer opt-in, gate it with if (process.env.SEED_ON_START === "1") await seedIfEmpty(); and set that env var in Deployments.)
+
+3) Ensure the published deployment uses the same DB + env
+
+In Replit:
+
+Verify the Deployment/Autoscale environment has the same DATABASE_URL secret as your dev environment.
+
+If you gated seeding behind an env flag, set SEED_ON_START=1 in the Deployment.
+
+Republish (Deploy). On first boot, the seed runs and persists.
+
+4) Quick acceptance checks
+
+Visiting the published app shows non-zero counts in any admin/stats view.
+
+GET /api/stores?lat=37.7749&lng=-122.4194&radius=10 returns the three SF stores.
+
+Planning a list like milk, eggs, bread returns store options immediately, including one promo and one member-price case.
+
+(Optional) Add a dev reset endpoint (guarded)
+
+Only if useful for demos. Add a route that truncates core tables and reseeds. Guard with env: only allow when NODE_ENV=development (or similar). Adjust table names to your schema.
+
+// in server/routes (or wherever your app instance is defined)
+app.post("/api/dev/reset-and-seed", async (_req, res) => {
+  if (process.env.NODE_ENV !== "development") {
+    return res.status(403).json({ error: "Not allowed" });
+  }
+  // Replace with your storage/db truncate helpers if available.
+  // Example raw SQL shown for clarity; adapt to your DB layer.
+  await db.execute(`
+    TRUNCATE TABLE prices, store_items, shopping_lists, trip_plans, items, stores
+    RESTART IDENTITY CASCADE;
+  `);
+  await seedIfEmpty();
+  res.json({ ok: true });
+});
+
+
+Key behaviors to preserve
+
+Seed runs once on an empty database; subsequent boots skip.
+
+Lat/lng included so nearby searches work out of the box.
+
+Promotions and member pricing present to exercise scoring/UX.

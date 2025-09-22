@@ -36,6 +36,7 @@ export interface IStorage {
   // Store Items methods
   getStoreItemsForStore(storeId: string): Promise<StoreItem[]>;
   updateStoreItemStock(storeId: string, itemId: string, inStock: boolean): Promise<StoreItem>;
+  importStoreItems(storeItems: InsertStoreItem[]): Promise<void>;
 
   // Shopping List methods
   createShoppingList(list: InsertShoppingList): Promise<ShoppingList>;
@@ -318,6 +319,12 @@ export class DatabaseStorage implements IStorage {
         .values({ storeId, itemId, inStock })
         .returning();
       return created;
+    }
+  }
+
+  async importStoreItems(storeItemList: InsertStoreItem[]): Promise<void> {
+    if (storeItemList.length > 0) {
+      await db.insert(storeItems).values(storeItemList);
     }
   }
 
