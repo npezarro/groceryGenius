@@ -5,7 +5,6 @@ type Stats = { storeCount: number; itemCount: number; priceCount: number };
 type SeedResult = { ok: boolean; seeded?: boolean; before?: { storeCount: number; itemCount: number; priceCount: number }; after?: Stats; error?: string };
 
 export default function LoadTestDataBar() {
-  const [adminKey, setAdminKey] = useState<string>(() => sessionStorage.getItem("adminKey") || "");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string>("");
   const [stats, setStats] = useState<Stats | null>(null);
@@ -26,15 +25,8 @@ export default function LoadTestDataBar() {
     setLoading(true);
     setMessage("");
     try {
-      if (!adminKey) {
-        setMessage("Enter admin key.");
-        setLoading(false);
-        return;
-      }
-      sessionStorage.setItem("adminKey", adminKey);
       const r = await fetch("/api/admin/seed-now", {
-        method: "POST",
-        headers: { "x-admin-key": adminKey }
+        method: "POST"
       });
       const j: SeedResult = await r.json();
       if (!j.ok) {
@@ -65,14 +57,6 @@ export default function LoadTestDataBar() {
       zIndex: 1000
     }}>
       <strong>Admin:</strong>
-      <input
-        type="password"
-        placeholder="Admin key"
-        value={adminKey}
-        onChange={(e) => setAdminKey(e.target.value)}
-        style={{ flex: "0 1 260px", padding: "8px", border: "1px solid #ddd", borderRadius: 6 }}
-        data-testid="input-admin-key"
-      />
       <button
         onClick={onSeedNow}
         disabled={loading}
