@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { X, Upload, Plus, List, TrendingUp } from "lucide-react";
 import { ShoppingListItem } from "@/lib/types";
+import { apiUrl } from "@/lib/api";
 import PriceSparkline from "./price-sparkline";
 
 interface ShoppingListProps {
@@ -22,7 +23,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
   const { data: dbItems } = useQuery({
     queryKey: ['/api/items'],
     queryFn: async () => {
-      const response = await fetch('/api/items');
+      const response = await fetch(apiUrl('/api/items'));
       if (!response.ok) throw new Error('Failed to fetch items');
       return response.json();
     }

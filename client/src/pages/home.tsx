@@ -8,6 +8,7 @@ import AdminPanel from "@/components/admin-panel";
 import { ShoppingListItem, LocationCoordinates, TripWeights, TripPlan } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { apiUrl } from "@/lib/api";
 
 export default function Home() {
   const { toast } = useToast();
@@ -32,7 +33,7 @@ export default function Home() {
     queryFn: async () => {
       if (!coordinates) return [];
       
-      const response = await fetch(`/api/stores?lat=${coordinates.lat}&lng=${coordinates.lng}&radius=${radius}`);
+      const response = await fetch(apiUrl(`/api/stores?lat=${coordinates.lat}&lng=${coordinates.lng}&radius=${radius}`));
       if (!response.ok) throw new Error('Failed to fetch stores');
       return response.json();
     },
@@ -44,7 +45,7 @@ export default function Home() {
     const geocodeDefaultLocation = async () => {
       if (!coordinates && location) {
         try {
-          const response = await fetch('/api/geocode', {
+          const response = await fetch(apiUrl('/api/geocode'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ address: location })
