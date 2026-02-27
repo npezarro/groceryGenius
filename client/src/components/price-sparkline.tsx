@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { PromotionBadge } from "./promotion-badge";
+import { apiUrl } from "@/lib/api";
 
 interface PriceSparklineProps {
   itemId: string;
@@ -35,10 +36,10 @@ export default function PriceSparkline({
   const { data: priceHistory, isLoading } = useQuery({
     queryKey: ['/api/prices/history', itemId, storeId, days],
     queryFn: async () => {
-      const url = storeId 
-        ? `/api/prices/history/${itemId}?storeId=${storeId}&days=${days}`
-        : `/api/prices/history/${itemId}?days=${days}`;
-      
+      const url = storeId
+        ? apiUrl(`/api/prices/history/${itemId}?storeId=${storeId}&days=${days}`)
+        : apiUrl(`/api/prices/history/${itemId}?days=${days}`);
+
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch price history');
       return response.json();
@@ -54,7 +55,7 @@ export default function PriceSparkline({
       params.append('itemIds', itemId);
       if (storeId) params.append('storeIds', storeId);
       
-      const response = await fetch(`/api/prices/promotions?${params}`);
+      const response = await fetch(apiUrl(`/api/prices/promotions?${params}`));
       if (!response.ok) throw new Error('Failed to fetch promotional prices');
       return response.json();
     },

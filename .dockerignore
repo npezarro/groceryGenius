@@ -1,0 +1,8 @@
+node_modules
+dist
+.git
+.DS_Store
+*.tar.gz
+attached_assets
+.replit
+replit.md

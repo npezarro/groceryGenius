@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { MapPin, Crosshair, Route, Star } from "lucide-react";
 import { LocationCoordinates, TripWeights } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+import { apiUrl } from "@/lib/api";
 
 interface LocationPreferencesProps {
   location: string;
@@ -59,7 +60,7 @@ export default function LocationPreferences({
 
   const geocodeLocation = async (address: string) => {
     try {
-      const response = await fetch('/api/geocode', {
+      const response = await fetch(apiUrl('/api/geocode'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address })
