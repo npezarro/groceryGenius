@@ -1,9 +1,11 @@
 // client/src/components/LoadTestDataBar.tsx
 import { useEffect, useState } from "react";
+import { apiUrl } from "@/lib/api";
+
 type Stats = { storeCount: number; itemCount: number; priceCount: number };
 
 async function callSeed(mode: "stores"|"items"|"prices"|"all") {
-  const r = await fetch(`/api/admin/seed?mode=${mode}`, { method: "POST" });
+  const r = await fetch(apiUrl(`/api/admin/seed?mode=${mode}`), { method: "POST" });
   return r.json();
 }
 
@@ -11,9 +13,10 @@ export default function LoadTestDataBar() {
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<string>("");
   const [stats, setStats] = useState<Stats | null>(null);
+  const [visible, setVisible] = useState(false);
 
   async function refreshStats() {
-    const r = await fetch("/api/diag/stats");
+    const r = await fetch(apiUrl("/api/diag/stats"));
     const j = await r.json();
     if (j.ok) setStats(j.stats);
   }
@@ -36,6 +39,19 @@ export default function LoadTestDataBar() {
     }
   }
 
+  if (!visible) {
+    return (
+      <button
+        onClick={() => setVisible(true)}
+        style={{ position: "fixed", bottom: 8, right: 8, padding: "4px 10px", fontSize: 11, background: "rgba(0,0,0,0.05)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 6, cursor: "pointer", zIndex: 1000 }}
+        title="Show test data controls"
+        data-testid="button-show-test-bar"
+      >
+        Dev Tools
+      </button>
+    );
+  }
+
   const btnStyle: React.CSSProperties = { padding: "8px 10px", border: "1px solid #333", borderRadius: 8, background: "#fff", fontWeight: 600 };
 
   return (
@@ -49,6 +65,9 @@ export default function LoadTestDataBar() {
         {stats ? `Stores: ${stats.storeCount} • Items: ${stats.itemCount} • Prices: ${stats.priceCount}` : "—"}
         {message ? `  —  ${message}` : ""}
       </div>
+      <button onClick={() => setVisible(false)} style={{ padding: "4px 8px", fontSize: 14, cursor: "pointer", background: "transparent", border: "none" }} title="Hide">
+        ×
+      </button>
     </div>
   );
 }
