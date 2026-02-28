@@ -6,6 +6,9 @@ import LocationPreferences from "@/components/location-preferences";
 import MapView from "@/components/map-view";
 import TripPlans from "@/components/trip-plans";
 import AdminPanel from "@/components/admin-panel";
+import FavoriteStores from "@/components/favorite-stores";
+import SubmitPrice from "@/components/submit-price";
+import ReceiptUpload from "@/components/receipt-upload";
 import { ShoppingListItem, LocationCoordinates, TripWeights, TripPlan } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -203,6 +206,10 @@ export default function Home() {
               onGeneratePlans={handleGeneratePlans}
               isGenerating={generatePlansMutation.isPending}
             />
+
+            <FavoriteStores stores={stores} />
+            <SubmitPrice stores={stores} />
+            <ReceiptUpload stores={stores} />
           </div>
 
           {/* Main Content */}
