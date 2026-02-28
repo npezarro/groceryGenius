@@ -1,11 +1,9 @@
-import type { Express, Request, Response } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertStoreSchema, insertItemSchema, insertPriceSchema, insertShoppingListSchema, prices } from "@shared/schema";
 import { db } from "./db";
 import { z } from "zod";
-import os from "os";
-import crypto from "crypto";
 import { seedTopUp, type SeedMode } from "./seed";
 
 // Mapbox integration
@@ -337,8 +335,11 @@ function checkAdminAuth(req: Request) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const basePath = process.env.BASE_PATH || "";
+  const router = express.Router();
+
   // --- Diagnostics: counts + masked DB info
-  app.get("/api/diag/stats", async (_req, res) => {
+  router.get("/api/diag/stats", async (_req, res) => {
     try {
       const stats = await storage.getDataStats();
       res.json({ ok: true, stats });
@@ -353,7 +354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return Boolean(adminKey) && header === adminKey;
   }
 
-  app.post("/api/admin/seed", async (req, res) => {
+  router.post("/api/admin/seed", async (req, res) => {
     // Admin key requirement removed for easier test data loading
 
     // Accept mode via query (?mode=prices) or JSON body { mode, force }
@@ -371,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Shopping list endpoints
-  app.post("/api/shopping-lists", async (req: Request, res: Response) => {
+  router.post("/api/shopping-lists", async (req: Request, res: Response) => {
     try {
       const validatedData = insertShoppingListSchema.parse(req.body);
       const shoppingList = await storage.createShoppingList(validatedData);
@@ -381,7 +382,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/shopping-lists", async (req: Request, res: Response) => {
+  router.get("/api/shopping-lists", async (req: Request, res: Response) => {
     try {
       const lists = await storage.getAllShoppingLists();
       res.json(lists);
@@ -391,7 +392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Items endpoints
-  app.get("/api/items", async (req: Request, res: Response) => {
+  router.get("/api/items", async (req: Request, res: Response) => {
     try {
       const { search } = req.query;
       let items;
@@ -409,7 +410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stores endpoints
-  app.get("/api/stores", async (req: Request, res: Response) => {
+  router.get("/api/stores", async (req: Request, res: Response) => {
     try {
       const { lat, lng, radius } = req.query;
       
@@ -430,7 +431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Prices endpoints
-  app.get("/api/prices", async (req: Request, res: Response) => {
+  router.get("/api/prices", async (req: Request, res: Response) => {
     try {
       const { itemIds, storeIds } = req.query;
       
@@ -452,7 +453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Price history endpoints
-  app.get("/api/prices/history/:itemId", async (req: Request, res: Response) => {
+  router.get("/api/prices/history/:itemId", async (req: Request, res: Response) => {
     try {
       const { itemId } = req.params;
       const { storeId, days } = req.query;
@@ -466,7 +467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/prices/history", async (req: Request, res: Response) => {
+  router.get("/api/prices/history", async (req: Request, res: Response) => {
     try {
       const { itemIds, days } = req.query;
       
@@ -485,7 +486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Promotional prices endpoint
-  app.get("/api/prices/promotions", async (req: Request, res: Response) => {
+  router.get("/api/prices/promotions", async (req: Request, res: Response) => {
     try {
       const { itemIds, storeIds } = req.query;
       
@@ -500,7 +501,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Geocoding endpoint
-  app.post("/api/geocode", async (req: Request, res: Response) => {
+  router.post("/api/geocode", async (req: Request, res: Response) => {
     try {
       const { address } = req.body;
       if (!address) {
@@ -519,7 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Trip planning endpoint
-  app.post("/api/trip-plans", async (req: Request, res: Response) => {
+  router.post("/api/trip-plans", async (req: Request, res: Response) => {
     try {
       const schema = z.object({
         items: z.array(z.string()),
@@ -555,7 +556,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // CSV import endpoints
-  app.post("/api/import/stores", async (req: Request, res: Response) => {
+  router.post("/api/import/stores", async (req: Request, res: Response) => {
     try {
       const { csvData } = req.body;
       if (!csvData) {
@@ -606,7 +607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/import/items", async (req: Request, res: Response) => {
+  router.post("/api/import/items", async (req: Request, res: Response) => {
     try {
       const { csvData } = req.body;
       if (!csvData) {
@@ -650,7 +651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/import/prices", async (req: Request, res: Response) => {
+  router.post("/api/import/prices", async (req: Request, res: Response) => {
     try {
       const { csvData } = req.body;
       if (!csvData) {
@@ -701,7 +702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Geocode stores endpoint
-  app.post("/api/geocode-stores", async (req: Request, res: Response) => {
+  router.post("/api/geocode-stores", async (req: Request, res: Response) => {
     try {
       const stores = await storage.getAllStores();
       const storesWithoutCoords = stores.filter(store => !store.lat || !store.lng);
@@ -729,7 +730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stats endpoint
-  app.get("/api/stats", async (req: Request, res: Response) => {
+  router.get("/api/stats", async (req: Request, res: Response) => {
     try {
       const stats = await storage.getDataStats();
       res.json(stats);
@@ -737,6 +738,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch stats" });
     }
   });
+
+  // Mount the router at the base path (e.g., "/grocerygenius" or "" for root)
+  if (basePath) {
+    app.use(basePath, router);
+  } else {
+    app.use(router);
+  }
 
   const httpServer = createServer(app);
   return httpServer;
