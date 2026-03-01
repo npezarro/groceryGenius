@@ -5,6 +5,7 @@ import { insertStoreSchema, insertItemSchema, insertPriceSchema, insertShoppingL
 import { db } from "./db";
 import { z } from "zod";
 import { seedTopUp, type SeedMode } from "./seed";
+import { hashPassword, verifyPassword, requireAuth } from "./auth";
 
 // Mapbox integration
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
@@ -736,6 +737,274 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stats);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  // ── Auth routes ───────────────────────────────────────
+
+  router.post("/api/auth/register", async (req: Request, res: Response) => {
+    try {
+      const body = z.object({
+        username: z.string().min(3).max(50),
+        email: z.string().email().optional(),
+        password: z.string().min(6),
+        displayName: z.string().max(100).optional(),
+      }).parse(req.body);
+
+      const existing = await storage.getUserByUsername(body.username);
+      if (existing) {
+        return res.status(409).json({ error: "Username already taken" });
+      }
+      if (body.email) {
+        const emailExists = await storage.getUserByEmail(body.email);
+        if (emailExists) {
+          return res.status(409).json({ error: "Email already registered" });
+        }
+      }
+
+      const hashed = await hashPassword(body.password);
+      const user = await storage.createUser({
+        username: body.username,
+        email: body.email,
+        password: hashed,
+        displayName: body.displayName,
+      });
+
+      req.session.userId = user.id;
+      res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      console.error("Register error:", error);
+      res.status(500).json({ error: "Registration failed" });
+    }
+  });
+
+  router.post("/api/auth/login", async (req: Request, res: Response) => {
+    try {
+      const { username, password } = z.object({
+        username: z.string(),
+        password: z.string(),
+      }).parse(req.body);
+
+      const user = await storage.getUserByUsername(username);
+      if (!user || !(await verifyPassword(user.password, password))) {
+        return res.status(401).json({ error: "Invalid username or password" });
+      }
+
+      req.session.userId = user.id;
+      res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  router.post("/api/auth/logout", (req: Request, res: Response) => {
+    req.session.destroy(() => {
+      res.json({ ok: true });
+    });
+  });
+
+  router.get("/api/auth/me", async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.json(null);
+    }
+    const user = await storage.getUser(req.session.userId);
+    if (!user) {
+      return res.json(null);
+    }
+    res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName });
+  });
+
+  // ── Favorite stores ─────────────────────────────────
+
+  router.get("/api/user/favorite-stores", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const favorites = await storage.getFavoriteStores(req.session.userId!);
+      res.json(favorites);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch favorites" });
+    }
+  });
+
+  router.post("/api/user/favorite-stores/:storeId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const fav = await storage.addFavoriteStore(req.session.userId!, req.params.storeId);
+      res.json(fav);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add favorite" });
+    }
+  });
+
+  router.delete("/api/user/favorite-stores/:storeId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.removeFavoriteStore(req.session.userId!, req.params.storeId);
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove favorite" });
+    }
+  });
+
+  // ── User price submissions ──────────────────────────
+
+  router.post("/api/user/prices", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const body = z.object({
+        itemName: z.string().min(1),
+        storeId: z.string(),
+        price: z.number().positive(),
+        unit: z.string().optional(),
+        quantity: z.number().optional(),
+      }).parse(req.body);
+
+      // Find or create the item
+      const item = await storage.findOrCreateItem(body.itemName, body.unit);
+
+      // Insert into the main prices table so it's part of trip planning
+      const priceRecord = await storage.createPrice({
+        itemId: item.id,
+        storeId: body.storeId,
+        price: String(body.price),
+        unit: body.unit,
+        quantity: body.quantity != null ? String(body.quantity) : undefined,
+        submittedBy: req.session.userId,
+      });
+
+      res.json(priceRecord);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      console.error("Submit price error:", error);
+      res.status(500).json({ error: "Failed to submit price" });
+    }
+  });
+
+  router.get("/api/prices/community/:itemId", async (req: Request, res: Response) => {
+    try {
+      const communityPrices = await storage.getCommunityPricesForItem(req.params.itemId);
+      res.json(communityPrices);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch community prices" });
+    }
+  });
+
+  // ── Receipts ────────────────────────────────────────
+
+  router.post("/api/user/receipts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const body = z.object({
+        storeId: z.string().optional(),
+        storeName: z.string().optional(),
+        imageData: z.string().optional(), // base64 image
+        purchaseDate: z.string().optional(),
+        totalAmount: z.number().optional(),
+        parsedItems: z.array(z.object({
+          name: z.string(),
+          price: z.number(),
+          quantity: z.number().optional(),
+          unit: z.string().optional(),
+        })).optional(),
+      }).parse(req.body);
+
+      const receipt = await storage.createReceipt({
+        userId: req.session.userId!,
+        storeId: body.storeId,
+        storeName: body.storeName,
+        imageData: body.imageData,
+        purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : undefined,
+        totalAmount: body.totalAmount != null ? String(body.totalAmount) : undefined,
+        parsedItems: body.parsedItems,
+        status: body.parsedItems && body.parsedItems.length > 0 ? "processed" : "pending",
+      });
+
+      res.json(receipt);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      console.error("Receipt upload error:", error);
+      res.status(500).json({ error: "Failed to upload receipt" });
+    }
+  });
+
+  router.get("/api/user/receipts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const receipts = await storage.getUserReceipts(req.session.userId!);
+      res.json(receipts);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch receipts" });
+    }
+  });
+
+  router.get("/api/user/receipts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const receipt = await storage.getReceipt(req.params.id, req.session.userId!);
+      if (!receipt) return res.status(404).json({ error: "Receipt not found" });
+      res.json(receipt);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch receipt" });
+    }
+  });
+
+  router.put("/api/user/receipts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const body = z.object({
+        parsedItems: z.array(z.object({
+          name: z.string(),
+          price: z.number(),
+          quantity: z.number().optional(),
+          unit: z.string().optional(),
+        })),
+      }).parse(req.body);
+
+      const receipt = await storage.updateReceipt(req.params.id, req.session.userId!, {
+        parsedItems: body.parsedItems,
+        status: "processed",
+      });
+      res.json(receipt);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      res.status(500).json({ error: "Failed to update receipt" });
+    }
+  });
+
+  /** Submit all parsed items from a receipt as price records */
+  router.post("/api/user/receipts/:id/submit-prices", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const receipt = await storage.getReceipt(req.params.id, req.session.userId!);
+      if (!receipt) return res.status(404).json({ error: "Receipt not found" });
+      if (!receipt.parsedItems || !receipt.storeId) {
+        return res.status(400).json({ error: "Receipt must have parsed items and a store" });
+      }
+
+      const items = receipt.parsedItems as Array<{ name: string; price: number; quantity?: number; unit?: string }>;
+      let submitted = 0;
+
+      for (const entry of items) {
+        const item = await storage.findOrCreateItem(entry.name, entry.unit);
+        await storage.createPrice({
+          itemId: item.id,
+          storeId: receipt.storeId,
+          price: String(entry.price),
+          unit: entry.unit,
+          quantity: entry.quantity != null ? String(entry.quantity) : undefined,
+          submittedBy: req.session.userId,
+        });
+        submitted++;
+      }
+
+      await storage.updateReceipt(receipt.id, req.session.userId!, { status: "processed" });
+      res.json({ ok: true, submitted });
+    } catch (error) {
+      console.error("Submit receipt prices error:", error);
+      res.status(500).json({ error: "Failed to submit prices from receipt" });
     }
   });
 

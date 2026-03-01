@@ -1,11 +1,32 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import memorystore from "memorystore";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { seedTopUp } from "./seed";
+import "./auth"; // loads session type augmentation
+
+const MemoryStore = memorystore(session);
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "5mb" })); // allow receipt image uploads
 app.use(express.urlencoded({ extended: false }));
+
+// Session middleware
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "grocery-genius-dev-secret",
+    resave: false,
+    saveUninitialized: false,
+    store: new MemoryStore({ checkPeriod: 86400000 }),
+    cookie: {
+      secure: process.env.NODE_ENV === "production" && !process.env.INSECURE_COOKIES,
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      sameSite: "lax",
+    },
+  })
+);
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -55,19 +76,12 @@ app.use((req, res, next) => {
     console.error(err);
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
   server.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
