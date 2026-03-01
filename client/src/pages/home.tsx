@@ -1,17 +1,23 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import ShoppingList from "@/components/shopping-list";
 import LocationPreferences from "@/components/location-preferences";
 import MapView from "@/components/map-view";
 import TripPlans from "@/components/trip-plans";
 import AdminPanel from "@/components/admin-panel";
+import FavoriteStores from "@/components/favorite-stores";
+import SubmitPrice from "@/components/submit-price";
+import ReceiptUpload from "@/components/receipt-upload";
 import { ShoppingListItem, LocationCoordinates, TripWeights, TripPlan } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { apiUrl } from "@/lib/api";
 
 export default function Home() {
   const { toast } = useToast();
+  const { user, logout } = useAuth();
   
   // State
   const [shoppingItems, setShoppingItems] = useState<ShoppingListItem[]>([]);
@@ -153,16 +159,25 @@ export default function Home() {
               </svg>
               <h1 className="text-xl font-bold text-foreground">Grocery Trip Planner</h1>
             </div>
-            <nav className="hidden md:flex space-x-6">
-              <a href="#planner" className="text-primary font-medium">Trip Planner</a>
-              <a href="#admin" className="text-muted-foreground hover:text-foreground">Admin</a>
-              <a href="#help" className="text-muted-foreground hover:text-foreground">Help</a>
+            <nav className="flex items-center space-x-4">
+              {user ? (
+                <>
+                  <span className="text-sm text-muted-foreground hidden sm:inline">
+                    {user.displayName || user.username}
+                  </span>
+                  <button
+                    onClick={() => logout()}
+                    className="text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <Link href="/auth" className="text-sm text-primary font-medium hover:underline">
+                  Sign In
+                </Link>
+              )}
             </nav>
-            <button className="md:hidden p-2">
-              <svg className="w-6 h-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
           </div>
         </div>
       </header>
@@ -191,6 +206,10 @@ export default function Home() {
               onGeneratePlans={handleGeneratePlans}
               isGenerating={generatePlansMutation.isPending}
             />
+
+            <FavoriteStores stores={stores} />
+            <SubmitPrice stores={stores} />
+            <ReceiptUpload stores={stores} />
           </div>
 
           {/* Main Content */}
