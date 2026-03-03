@@ -77,9 +77,13 @@ export const tripPlans = pgTable("trip_plans", {
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
-  email: text("email").unique(),
+  email: text("email").notNull().unique(),
   password: text("password").notNull(),
   displayName: text("display_name"),
+  role: text("role").default("user"),
+  emailVerified: boolean("email_verified").default(false),
+  verificationCode: text("verification_code"),
+  verificationExpires: timestamp("verification_expires"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -225,6 +229,8 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   email: true,
   displayName: true,
+}).extend({
+  email: z.string().email(),
 });
 
 export const insertFavoriteStoreSchema = createInsertSchema(userFavoriteStores).omit({

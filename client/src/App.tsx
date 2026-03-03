@@ -7,14 +7,17 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { BASE_PATH } from "@/lib/api";
 import Home from "@/pages/home";
 import AuthPage from "@/pages/auth";
+import AdminPage from "@/pages/admin";
+import VerifyEmailPage from "@/pages/verify-email";
 import NotFound from "@/pages/not-found";
-import LoadTestDataBar from "./components/LoadTestDataBar";
 
 function AppRoutes() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/admin" component={AdminPage} />
+      <Route path="/verify-email" component={VerifyEmailPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -28,7 +31,6 @@ function App() {
           <WouterRouter base={BASE_PATH || undefined}>
             <Toaster />
             <AppRoutes />
-            <LoadTestDataBar />
           </WouterRouter>
         </TooltipProvider>
       </AuthProvider>

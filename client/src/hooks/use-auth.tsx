@@ -7,13 +7,15 @@ interface AuthUser {
   username: string;
   email?: string | null;
   displayName?: string | null;
+  isAdmin?: boolean;
+  emailVerified?: boolean;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<AuthUser>;
-  register: (data: { username: string; password: string; email?: string; displayName?: string }) => Promise<AuthUser>;
+  register: (data: { username: string; password: string; email: string; displayName?: string }) => Promise<AuthUser>;
   logout: () => Promise<void>;
 }
 
@@ -42,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!res.ok) return null;
       return res.json();
     },
-    staleTime: Infinity,
+    staleTime: 5 * 60 * 1000,
     retry: false,
   });
 
@@ -53,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const registerMut = useMutation({
-    mutationFn: (data: { username: string; password: string; email?: string; displayName?: string }) =>
+    mutationFn: (data: { username: string; password: string; email: string; displayName?: string }) =>
       fetchJson("/api/auth/register", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: (data) => qc.setQueryData(["/api/auth/me"], data),
   });
@@ -71,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [loginMut]
   );
   const register = useCallback(
-    async (data: { username: string; password: string; email?: string; displayName?: string }) =>
+    async (data: { username: string; password: string; email: string; displayName?: string }) =>
       registerMut.mutateAsync(data),
     [registerMut]
   );

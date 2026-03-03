@@ -62,10 +62,12 @@ export default function SubmitPrice({ stores }: SubmitPriceProps) {
   if (!user) return null;
 
   return (
-    <Card className="shadow-sm">
+    <Card className="shadow-sm border-0 shadow-md">
       <CardContent className="p-4">
         <h3 className="text-sm font-semibold mb-3 flex items-center">
-          <DollarSign className="text-green-600 mr-2" size={16} />
+          <div className="bg-green-50 dark:bg-green-950/30 rounded-md p-1 mr-2">
+            <DollarSign className="text-green-600" size={14} />
+          </div>
           Submit a Price
         </h3>
 

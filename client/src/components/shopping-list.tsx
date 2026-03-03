@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Upload, Plus, List, TrendingUp } from "lucide-react";
+import { X, Upload, Plus, List, TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
 import { ShoppingListItem } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
 import PriceSparkline from "./price-sparkline";
@@ -18,6 +18,7 @@ interface ShoppingListProps {
 export default function ShoppingList({ items, onItemsChange, userHasMembership = false }: ShoppingListProps) {
   const [newItemName, setNewItemName] = useState("");
   const [bulkItems, setBulkItems] = useState("");
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   // Fetch items from database to get IDs for price history
   const { data: dbItems } = useQuery({
@@ -91,38 +92,22 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
   };
 
   return (
-    <Card className="shadow-sm">
-      <CardContent className="p-6">
-        <h2 className="text-lg font-semibold mb-4 flex items-center">
-          <List className="text-primary mr-2" size={20} />
-          Shopping List
-        </h2>
-        
-        {/* CSV Upload */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-muted-foreground mb-2">
-            Upload CSV or paste items
-          </label>
-          <div className="border-2 border-dashed border-border rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer">
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
-              className="hidden"
-              id="csv-upload"
-              data-testid="input-csv-upload"
-            />
-            <label htmlFor="csv-upload" className="cursor-pointer">
-              <Upload className="mx-auto text-2xl text-muted-foreground mb-2" size={32} />
-              <p className="text-sm text-muted-foreground">
-                Drop CSV file here or <span className="text-primary">browse</span>
-              </p>
-            </label>
+    <Card className="shadow-sm border-0 shadow-md">
+      <CardContent className="p-5">
+        <h2 className="text-base font-semibold mb-4 flex items-center">
+          <div className="bg-primary/10 rounded-lg p-1.5 mr-2.5">
+            <List className="text-primary" size={18} />
           </div>
-        </div>
+          Shopping List
+          {items.length > 0 && (
+            <span className="ml-auto text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+              {items.length}
+            </span>
+          )}
+        </h2>
 
         {/* Item Input */}
-        <div className="mb-4">
+        <div className="mb-3">
           <div className="relative">
             <Input
               type="text"
@@ -130,13 +115,13 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addItem()}
-              className="pr-10"
+              className="pr-10 h-10"
               data-testid="input-new-item"
             />
             <Button
               size="sm"
               onClick={addItem}
-              className="absolute right-2 top-2 h-6 w-6 p-0"
+              className="absolute right-1.5 top-1.5 h-7 w-7 p-0 rounded-md"
               data-testid="button-add-item"
             >
               <Plus size={14} />
@@ -144,61 +129,90 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
           </div>
         </div>
 
-        {/* Textarea for bulk paste */}
-        <Textarea
-          placeholder="Or paste multiple items (one per line)&#10;Apples&#10;Bread&#10;Milk&#10;Chicken breast"
-          value={bulkItems}
-          onChange={(e) => setBulkItems(e.target.value)}
-          className="h-24 resize-none text-sm mb-2"
-          data-testid="textarea-bulk-items"
-        />
-        
-        {bulkItems.trim() && (
-          <Button
-            onClick={addBulkItems}
-            size="sm"
-            className="mb-4"
-            data-testid="button-add-bulk"
-          >
-            Add Items
-          </Button>
+        {/* Collapsible Bulk Import */}
+        <button
+          onClick={() => setShowBulkImport(!showBulkImport)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3"
+        >
+          {showBulkImport ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          <Upload size={12} />
+          Bulk import or CSV upload
+        </button>
+
+        {showBulkImport && (
+          <div className="space-y-2 mb-4 p-3 bg-muted/50 rounded-lg border border-border">
+            <div className="border-2 border-dashed border-border rounded-lg p-3 text-center hover:border-primary/50 transition-colors cursor-pointer">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="csv-upload"
+                data-testid="input-csv-upload"
+              />
+              <label htmlFor="csv-upload" className="cursor-pointer">
+                <Upload className="mx-auto text-muted-foreground mb-1" size={20} />
+                <p className="text-xs text-muted-foreground">
+                  Drop CSV or <span className="text-primary font-medium">browse</span>
+                </p>
+              </label>
+            </div>
+
+            <Textarea
+              placeholder="Or paste items, one per line..."
+              value={bulkItems}
+              onChange={(e) => setBulkItems(e.target.value)}
+              className="h-20 resize-none text-sm"
+              data-testid="textarea-bulk-items"
+            />
+
+            {bulkItems.trim() && (
+              <Button
+                onClick={addBulkItems}
+                size="sm"
+                className="w-full"
+                data-testid="button-add-bulk"
+              >
+                <Plus size={14} className="mr-1" />
+                Add Items
+              </Button>
+            )}
+          </div>
         )}
 
         {/* Current List */}
-        <div className="mt-4">
-          <h3 className="text-sm font-medium text-muted-foreground mb-2">
-            Current List ({items.length} items)
-          </h3>
-          
+        <div>
           {items.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <List size={48} className="mx-auto mb-2 opacity-50" />
-              <p>No items in your shopping list</p>
-              <p className="text-sm">Add items above to get started</p>
+              <div className="bg-muted rounded-full w-14 h-14 flex items-center justify-center mx-auto mb-3">
+                <List size={24} className="opacity-40" />
+              </div>
+              <p className="text-sm font-medium">Your list is empty</p>
+              <p className="text-xs mt-1">Add items above to get started</p>
             </div>
           ) : (
-            <div className="space-y-3" data-testid="shopping-list-items">
+            <div className="space-y-2" data-testid="shopping-list-items">
               {items.map((item) => {
                 const itemId = getItemId(item.name);
                 return (
                   <div
                     key={item.id}
-                    className="p-3 bg-muted rounded-md"
+                    className="p-3 bg-muted/50 rounded-lg border border-border/50 hover:border-border transition-colors"
                     data-testid={`item-${item.id}`}
                   >
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-1.5">
                       <span className="text-sm font-medium">{item.name}</span>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => removeItem(item.id)}
-                        className="text-destructive hover:text-destructive/80 h-6 w-6 p-0"
+                        className="text-muted-foreground hover:text-destructive h-6 w-6 p-0"
                         data-testid={`button-remove-${item.id}`}
                       >
                         <X size={14} />
                       </Button>
                     </div>
-                    
+
                     {itemId ? (
                       <div className="flex items-center space-x-2">
                         <TrendingUp size={12} className="text-muted-foreground" />

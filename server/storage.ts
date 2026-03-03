@@ -28,9 +28,28 @@ export class DatabaseStorage {
     return user || undefined;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async createUser(insertUser: InsertUser & { role?: string }): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(asc(users.createdAt));
+  }
+
+  async setVerificationCode(userId: string, code: string, expires: Date): Promise<void> {
+    await db.update(users).set({
+      verificationCode: code,
+      verificationExpires: expires,
+    }).where(eq(users.id, userId));
+  }
+
+  async verifyUser(userId: string): Promise<void> {
+    await db.update(users).set({
+      emailVerified: true,
+      verificationCode: null,
+      verificationExpires: null,
+    }).where(eq(users.id, userId));
   }
 
   // ── Store methods ───────────────────────────────────

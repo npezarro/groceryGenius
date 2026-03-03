@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShoppingCart } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -25,11 +26,12 @@ export default function AuthPage() {
       if (isLogin) {
         await login(username, password);
         toast({ title: "Welcome back!" });
+        navigate("/");
       } else {
-        await register({ username, password, email: email || undefined, displayName: displayName || undefined });
-        toast({ title: "Account created!" });
+        await register({ username, password, email, displayName: displayName || undefined });
+        toast({ title: "Account created!", description: "Check your email for a verification code." });
+        navigate("/verify-email");
       }
-      navigate("/");
     } catch (error) {
       toast({
         title: isLogin ? "Login failed" : "Registration failed",
@@ -42,16 +44,16 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-lg">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-xl border-0">
         <CardContent className="p-8">
-          <div className="text-center mb-6">
-            <svg className="w-12 h-12 text-primary mx-auto mb-2" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M7 4V2C7 1.45 7.45 1 8 1H16C16.55 1 17 1.45 17 2V4H20C20.55 4 21 4.45 21 5S20.55 6 20 6H19V19C19 20.1 18.1 21 17 21H7C5.9 21 5 20.1 5 19V6H4C3.45 6 3 5.55 3 5S3.45 4 4 4H7ZM9 3V4H15V3H9ZM7 6V19H17V6H7Z"/>
-            </svg>
-            <h1 className="text-2xl font-bold">Grocery Genius</h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              {isLogin ? "Sign in to your account" : "Create a new account"}
+          <div className="text-center mb-8">
+            <div className="bg-gradient-to-br from-primary to-emerald-600 rounded-2xl w-16 h-16 flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <ShoppingCart className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">Grocery Genius</h1>
+            <p className="text-muted-foreground text-sm mt-1.5">
+              {isLogin ? "Welcome back! Sign in to continue." : "Create your account to get started."}
             </p>
           </div>
 
@@ -71,12 +73,13 @@ export default function AuthPage() {
             {!isLogin && (
               <>
                 <div>
-                  <Label htmlFor="email">Email (optional)</Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    required
                     autoComplete="email"
                   />
                 </div>
@@ -104,18 +107,21 @@ export default function AuthPage() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full h-11 font-semibold shadow-md hover:shadow-lg transition-shadow" disabled={loading}>
               {loading ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
             </Button>
           </form>
 
-          <div className="text-center mt-4">
+          <div className="text-center mt-6 pt-4 border-t border-border">
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-primary hover:underline"
+              className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
-              {isLogin ? "Don't have an account? Register" : "Already have an account? Sign in"}
+              {isLogin ? "Don't have an account? " : "Already have an account? "}
+              <span className="text-primary font-medium">
+                {isLogin ? "Register" : "Sign in"}
+              </span>
             </button>
           </div>
         </CardContent>

@@ -130,10 +130,12 @@ export default function LocationPreferences({
   };
 
   return (
-    <Card className="shadow-sm">
-      <CardContent className="p-6">
-        <h2 className="text-lg font-semibold mb-4 flex items-center">
-          <MapPin className="text-primary mr-2" size={20} />
+    <Card className="shadow-sm border-0 shadow-md">
+      <CardContent className="p-5">
+        <h2 className="text-base font-semibold mb-4 flex items-center">
+          <div className="bg-primary/10 rounded-lg p-1.5 mr-2.5">
+            <MapPin className="text-primary" size={18} />
+          </div>
           Location & Preferences
         </h2>
 
@@ -215,8 +217,8 @@ export default function LocationPreferences({
         </div>
 
         {/* Weight Sliders */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-medium text-muted-foreground">Trip Optimization Weights</h3>
+        <div className="space-y-4 mt-5 pt-4 border-t border-border">
+          <h3 className="text-sm font-medium text-foreground">Optimization Weights</h3>
           
           <div>
             <div className="flex justify-between items-center mb-2">
@@ -283,7 +285,7 @@ export default function LocationPreferences({
         <Button
           onClick={onGeneratePlans}
           disabled={!coordinates || isGenerating}
-          className="w-full mt-6 flex items-center justify-center"
+          className="w-full mt-6 flex items-center justify-center h-11 text-sm font-semibold shadow-md hover:shadow-lg transition-shadow"
           data-testid="button-generate-plans"
         >
           <Route className="mr-2" size={16} />

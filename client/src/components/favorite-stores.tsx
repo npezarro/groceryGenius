@@ -56,10 +56,12 @@ export default function FavoriteStores({ stores }: FavoriteStoresProps) {
   if (stores.length === 0) return null;
 
   return (
-    <Card className="shadow-sm">
+    <Card className="shadow-sm border-0 shadow-md">
       <CardContent className="p-4">
         <h3 className="text-sm font-semibold mb-3 flex items-center">
-          <Heart className="text-red-500 mr-2" size={16} />
+          <div className="bg-red-50 dark:bg-red-950/30 rounded-md p-1 mr-2">
+            <Heart className="text-red-500" size={14} />
+          </div>
           Favorite Stores
         </h3>
         <div className="space-y-2">

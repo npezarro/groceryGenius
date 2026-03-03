@@ -1,11 +1,12 @@
 import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertStoreSchema, insertItemSchema, insertPriceSchema, insertShoppingListSchema, prices } from "@shared/schema";
+import { insertStoreSchema, insertItemSchema, insertPriceSchema, insertShoppingListSchema, prices, stores as storesTable, items as itemsTable } from "@shared/schema";
 import { db } from "./db";
 import { z } from "zod";
 import { seedTopUp, type SeedMode } from "./seed";
-import { hashPassword, verifyPassword, requireAuth } from "./auth";
+import { hashPassword, verifyPassword, requireAuth, requireAdmin, isAdmin, getAdminEmail } from "./auth";
+import { generateVerificationCode, sendVerificationEmail } from "./email";
 
 // Mapbox integration
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
@@ -339,8 +340,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const basePath = process.env.BASE_PATH || "";
   const router = express.Router();
 
-  // --- Diagnostics: counts + masked DB info
-  router.get("/api/diag/stats", async (_req, res) => {
+  // --- Diagnostics: counts + masked DB info (admin only)
+  router.get("/api/diag/stats", requireAdmin, async (_req, res) => {
     try {
       const stats = await storage.getDataStats();
       res.json({ ok: true, stats });
@@ -349,16 +350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  function isAuthorized(req: any) {
-    const adminKey = process.env.ADMIN_KEY;
-    const header = req.headers["x-admin-key"];
-    return Boolean(adminKey) && header === adminKey;
-  }
-
-  router.post("/api/admin/seed", async (req, res) => {
-    // Admin key requirement removed for easier test data loading
-
-    // Accept mode via query (?mode=prices) or JSON body { mode, force }
+  router.post("/api/admin/seed", requireAdmin, async (req, res) => {
     const modeQ = (req.query?.mode as string)?.toLowerCase();
     const body = typeof req.body === "object" ? req.body : {};
     const mode: SeedMode = (body.mode || modeQ || "all") as SeedMode;
@@ -369,6 +361,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (e) {
       res.status(500).json({ ok: false, error: "seed_failed" });
+    }
+  });
+
+  // Admin: clear a table
+  router.delete("/api/admin/clear/:table", requireAdmin, async (req: Request, res: Response) => {
+    const table = req.params.table;
+    try {
+      if (table === "prices") {
+        await db.delete(prices);
+      } else if (table === "items") {
+        await db.delete(prices); // delete prices first (FK constraint)
+        await db.delete(itemsTable);
+      } else if (table === "stores") {
+        await db.delete(prices); // delete prices first (FK constraint)
+        await db.delete(storesTable);
+      } else {
+        return res.status(400).json({ error: `Unknown table: ${table}. Allowed: stores, items, prices` });
+      }
+      const stats = await storage.getDataStats();
+      res.json({ ok: true, cleared: table, stats });
+    } catch (error) {
+      console.error(`Clear ${table} error:`, error);
+      res.status(500).json({ error: `Failed to clear ${table}` });
+    }
+  });
+
+  // Admin: list all users
+  router.get("/api/admin/users", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      const safeUsers = allUsers.map(u => ({
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        displayName: u.displayName,
+        role: u.role,
+        emailVerified: u.emailVerified ?? false,
+        createdAt: u.createdAt,
+      }));
+      res.json(safeUsers);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch users" });
     }
   });
 
@@ -557,7 +591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // CSV import endpoints
-  router.post("/api/import/stores", async (req: Request, res: Response) => {
+  router.post("/api/import/stores", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { csvData } = req.body;
       if (!csvData) {
@@ -608,7 +642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  router.post("/api/import/items", async (req: Request, res: Response) => {
+  router.post("/api/import/items", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { csvData } = req.body;
       if (!csvData) {
@@ -652,7 +686,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  router.post("/api/import/prices", async (req: Request, res: Response) => {
+  router.post("/api/import/prices", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { csvData } = req.body;
       if (!csvData) {
@@ -703,7 +737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Geocode stores endpoint
-  router.post("/api/geocode-stores", async (req: Request, res: Response) => {
+  router.post("/api/geocode-stores", requireAdmin, async (req: Request, res: Response) => {
     try {
       const stores = await storage.getAllStores();
       const storesWithoutCoords = stores.filter(store => !store.lat || !store.lng);
@@ -731,7 +765,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stats endpoint
-  router.get("/api/stats", async (req: Request, res: Response) => {
+  router.get("/api/stats", requireAdmin, async (req: Request, res: Response) => {
     try {
       const stats = await storage.getDataStats();
       res.json(stats);
@@ -746,7 +780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const body = z.object({
         username: z.string().min(3).max(50),
-        email: z.string().email().optional(),
+        email: z.string().email(),
         password: z.string().min(6),
         displayName: z.string().max(100).optional(),
       }).parse(req.body);
@@ -755,23 +789,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existing) {
         return res.status(409).json({ error: "Username already taken" });
       }
-      if (body.email) {
-        const emailExists = await storage.getUserByEmail(body.email);
-        if (emailExists) {
-          return res.status(409).json({ error: "Email already registered" });
-        }
+      const emailExists = await storage.getUserByEmail(body.email);
+      if (emailExists) {
+        return res.status(409).json({ error: "Email already registered" });
       }
 
       const hashed = await hashPassword(body.password);
+      const role = body.email === getAdminEmail() ? "admin" : "user";
       const user = await storage.createUser({
         username: body.username,
         email: body.email,
         password: hashed,
         displayName: body.displayName,
+        role,
       });
 
+      // Generate and send verification code
+      const code = generateVerificationCode();
+      const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      await storage.setVerificationCode(user.id, code, expires);
+      await sendVerificationEmail(body.email, code);
+
       req.session.userId = user.id;
-      res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName });
+      res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName, isAdmin: isAdmin(user), emailVerified: false });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors[0].message });
@@ -794,7 +834,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       req.session.userId = user.id;
-      res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName });
+      res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName, isAdmin: isAdmin(user), emailVerified: user.emailVerified ?? false });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors[0].message });
@@ -817,7 +857,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!user) {
       return res.json(null);
     }
-    res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName });
+    res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName, isAdmin: isAdmin(user), emailVerified: user.emailVerified ?? false });
+  });
+
+  // ── Email verification ─────────────────────────────────
+
+  router.post("/api/auth/verify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { code } = z.object({ code: z.string().length(6) }).parse(req.body);
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ error: "User not found" });
+
+      if (user.emailVerified) {
+        return res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName, isAdmin: isAdmin(user), emailVerified: true });
+      }
+
+      if (!user.verificationCode || !user.verificationExpires) {
+        return res.status(400).json({ error: "No verification code pending. Request a new one." });
+      }
+
+      if (new Date() > new Date(user.verificationExpires)) {
+        return res.status(400).json({ error: "Verification code has expired. Request a new one." });
+      }
+
+      if (user.verificationCode !== code) {
+        return res.status(400).json({ error: "Invalid verification code" });
+      }
+
+      await storage.verifyUser(user.id);
+      res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName, isAdmin: isAdmin(user), emailVerified: true });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid code format" });
+      }
+      console.error("Verify error:", error);
+      res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
+  router.post("/api/auth/resend-verification", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ error: "User not found" });
+
+      if (user.emailVerified) {
+        return res.json({ message: "Email already verified" });
+      }
+
+      if (!user.email) {
+        return res.status(400).json({ error: "No email on file" });
+      }
+
+      const code = generateVerificationCode();
+      const expires = new Date(Date.now() + 15 * 60 * 1000);
+      await storage.setVerificationCode(user.id, code, expires);
+      const sent = await sendVerificationEmail(user.email, code);
+
+      if (!sent) {
+        return res.status(500).json({ error: "Failed to send verification email" });
+      }
+
+      res.json({ message: "Verification code sent" });
+    } catch (error) {
+      console.error("Resend verification error:", error);
+      res.status(500).json({ error: "Failed to resend verification" });
+    }
   });
 
   // ── Favorite stores ─────────────────────────────────

@@ -1,55 +1,27 @@
 # context.md
-Last Updated: 2026-02-28 — Auth, favorites, receipts, community pricing fully implemented
-Current State: App builds cleanly (TS + Vite + esbuild), production server starts and serves at configurable BASE_PATH. Full user authentication (session-based), favorite stores, community price submissions, and receipt upload features implemented. No database connected in this environment (needs DATABASE_URL + drizzle-kit push for new tables).
+Last Updated: 2026-03-03 — Added admin system, email verification, and UI overhaul
+Current State: App is live at https://pezant.ca/grocerygenius/. Full UI redesign (green theme, Inter font, real shadows). Admin dashboard at /admin gated behind role + email verification. Email verification via Gmail SMTP with 6-digit codes. Auth system includes registration, login, sessions, and verification flow. DB seeded with 3 stores, 10 items, 30 prices. No Mapbox token configured (geocoding won't work). Sessions use MemoryStore (not persistent across PM2 restarts).
 Recent Changes:
-- Fixed server crash bugs (reusePort, throw in error handler, uncaught seed failure)
-- Fixed esbuild @shared alias so production bundle resolves shared/schema
-- Added BASE_PATH env var support for subpath hosting at pezant.ca/grocerygenius
-- All client API calls routed through apiUrl() helper
-- Wouter router configured with base path
-- Created Dockerfile (multi-stage) and .dockerignore
-- Trimmed Google Fonts from 25+ families to just Roboto
-- Added HTML title/meta, .env.example
-- LoadTestDataBar now collapsed by default behind "Dev Tools" button
-- Added user authentication (session-based with scrypt password hashing)
-  - Login/register page at /auth
-  - Auth-aware header (username + sign out / sign in link)
-  - express-session with MemoryStore
-  - requireAuth middleware for protected routes
-- Extended database schema:
-  - users table: added email, displayName, createdAt
-  - prices table: added submittedBy field for community submissions
-  - New userFavoriteStores table (userId + storeId unique)
-  - New receipts table (imageData, parsedItems jsonb, status)
-- Added favorite stores feature:
-  - Heart icon toggle per store in sidebar
-  - GET/POST/DELETE /api/user/favorite-stores endpoints
-- Added community price submission:
-  - Form to submit item name + store + price + unit
-  - POST /api/user/prices creates real price records via findOrCreateItem
-  - GET /api/prices/community/:itemId for viewing submissions
-- Added receipt upload:
-  - Client-side image resize (800px max via canvas)
-  - Store selector, purchase date, manual item/price rows
-  - Receipt history list with submit-to-prices button
-  - POST/GET/PUT receipt endpoints + POST submit-prices
+- Added email verification system: nodemailer + Gmail SMTP, 6-digit codes, 15-min expiry, verify/resend endpoints, dedicated /verify-email page
+- Added admin role system: isAdmin() checks email/role, requireAdmin middleware (checks admin + emailVerified), dedicated /admin page with stats/seed/import/geocoding/data management/users panels
+- Complete UI overhaul: green grocery theme, Inter font, fixed shadow variables, gradient header, branded auth page, improved all component cards
+- Swapped pg driver for local PostgreSQL (Neon driver incompatible with local DB)
 Open Work:
-- Need DATABASE_URL (Neon PostgreSQL) to test full functionality
-- Need to run `drizzle-kit push` to create new tables (userFavoriteStores, receipts, extended users/prices)
 - Need MAPBOX_ACCESS_TOKEN for geocoding features
-- GCP deployment: Docker image needs to be built and deployed to Cloud Run (or GCE)
-- Nginx/load balancer at pezant.ca needs to proxy /grocerygenius/* to the service
-- MapView component is still a placeholder (no real Mapbox GL JS integration)
-- JS bundle is ~723KB — could benefit from code splitting
-- MemoryStore for sessions should be replaced with a persistent store (connect-pg-simple) for production
-- Receipt OCR: currently manual entry only; could add Google Cloud Vision API
-- No Drizzle migration files (using drizzle-kit push)
+- MapView component is still a placeholder (no Mapbox GL JS integration)
+- JS bundle is ~739KB — could benefit from code splitting
+- MemoryStore for sessions should be replaced with connect-pg-simple for persistence
+- Receipt OCR: currently manual entry only
+- No Drizzle migration files (using drizzle-kit push, manual ALTER TABLEs)
 Environment Notes:
-- Deploy target: GCP (Cloud Run or GCE) at pezant.ca/grocerygenius
+- Deploy target: GCE VM (wordpress-7-vm) at pezant.ca
+- SSH user: n_pezarro / hostname: pezant.ca
+- PM2 process name: grocerygenius / port: 8080
+- PM2 config: /opt/grocerygenius/ecosystem.config.cjs (NOT committed — contains secrets)
+- Web server: Apache 2.4 / config: /etc/apache2/sites-enabled/wordpress-https.conf
 - BASE_PATH: /grocerygenius (set at build time for Vite, runtime for Express)
-- Port: 5000 (dev), 8080 (Docker default)
-- Database: Neon PostgreSQL (serverless) via DATABASE_URL env var
-- Session: SESSION_SECRET env var (defaults to dev secret if unset)
-- Build: `npm run build` (Vite for client, esbuild for server)
-- Start: `npm run start` (NODE_ENV=production node dist/index.js)
+- Database: local PostgreSQL 13 on 127.0.0.1:5432, database name: grocerygenius
+- SMTP: Gmail via pezant.projects@gmail.com (app password in ecosystem.config.cjs)
+- Build: `BASE_PATH=/grocerygenius npm run build`
+- Start: `pm2 start ecosystem.config.cjs` (or `pm2 restart grocerygenius --update-env`)
 Active Branch: claude/fix-code-gcp-deploy-q5ZMg

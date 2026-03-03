@@ -5,10 +5,10 @@ import ShoppingList from "@/components/shopping-list";
 import LocationPreferences from "@/components/location-preferences";
 import MapView from "@/components/map-view";
 import TripPlans from "@/components/trip-plans";
-import AdminPanel from "@/components/admin-panel";
 import FavoriteStores from "@/components/favorite-stores";
 import SubmitPrice from "@/components/submit-price";
 import ReceiptUpload from "@/components/receipt-upload";
+import { ShoppingCart, LogOut, Settings, AlertTriangle } from "lucide-react";
 import { ShoppingListItem, LocationCoordinates, TripWeights, TripPlan } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -150,30 +150,39 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-card border-b border-border shadow-sm">
+      <header className="bg-gradient-to-r from-primary to-emerald-600 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-              <svg className="w-8 h-8 text-primary" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M7 4V2C7 1.45 7.45 1 8 1H16C16.55 1 17 1.45 17 2V4H20C20.55 4 21 4.45 21 5S20.55 6 20 6H19V19C19 20.1 18.1 21 17 21H7C5.9 21 5 20.1 5 19V6H4C3.45 6 3 5.55 3 5S3.45 4 4 4H7ZM9 3V4H15V3H9ZM7 6V19H17V6H7Z"/>
-              </svg>
-              <h1 className="text-xl font-bold text-foreground">Grocery Trip Planner</h1>
+              <div className="bg-white/20 rounded-lg p-1.5">
+                <ShoppingCart className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold text-white tracking-tight">Grocery Genius</h1>
+                <p className="text-xs text-white/70 -mt-0.5 hidden sm:block">Smart Trip Planner</p>
+              </div>
             </div>
-            <nav className="flex items-center space-x-4">
+            <nav className="flex items-center space-x-3">
               {user ? (
                 <>
-                  <span className="text-sm text-muted-foreground hidden sm:inline">
+                  {user.isAdmin && (
+                    <Link href="/admin" className="text-white/70 hover:text-white transition-colors" title="Admin Dashboard">
+                      <Settings size={16} />
+                    </Link>
+                  )}
+                  <span className="text-sm text-white/80 hidden sm:inline">
                     {user.displayName || user.username}
                   </span>
                   <button
                     onClick={() => logout()}
-                    className="text-sm text-muted-foreground hover:text-foreground"
+                    className="text-sm text-white/80 hover:text-white flex items-center gap-1.5 transition-colors"
                   >
-                    Sign Out
+                    <LogOut size={14} />
+                    <span className="hidden sm:inline">Sign Out</span>
                   </button>
                 </>
               ) : (
-                <Link href="/auth" className="text-sm text-primary font-medium hover:underline">
+                <Link href="/auth" className="text-sm text-white font-medium bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg transition-colors">
                   Sign In
                 </Link>
               )}
@@ -182,8 +191,22 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8" id="planner">
+      {user && !user.emailVerified && (
+        <div className="bg-amber-50 border-b border-amber-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-amber-800">
+              <AlertTriangle size={14} />
+              <span>Please verify your email address.</span>
+            </div>
+            <Link href="/verify-email" className="text-sm font-medium text-amber-700 hover:text-amber-900 transition-colors">
+              Verify now
+            </Link>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="planner">
           {/* Left Sidebar */}
           <div className="lg:col-span-1 space-y-6">
             <ShoppingList
@@ -226,8 +249,6 @@ export default function Home() {
               onSelectPlan={handleSelectPlan}
               userCoordinates={coordinates}
             />
-            
-            <AdminPanel />
           </div>
         </div>
       </div>

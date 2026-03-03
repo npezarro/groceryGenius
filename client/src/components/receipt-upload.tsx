@@ -133,11 +133,13 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
   if (!user) return null;
 
   return (
-    <Card className="shadow-sm">
+    <Card className="shadow-sm border-0 shadow-md">
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold flex items-center">
-            <Receipt className="text-blue-600 mr-2" size={16} />
+            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-md p-1 mr-2">
+              <Receipt className="text-blue-600" size={14} />
+            </div>
             Receipts
           </h3>
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowForm(!showForm)}>

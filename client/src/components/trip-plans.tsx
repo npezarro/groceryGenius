@@ -44,16 +44,18 @@ export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoor
 
   if (isLoading) {
     return (
-      <Card className="shadow-sm">
-        <CardContent className="p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center">
-            <Route className="text-primary mr-2" size={20} />
+      <Card className="shadow-sm border-0 shadow-md">
+        <CardContent className="p-5">
+          <h2 className="text-base font-semibold mb-4 flex items-center">
+            <div className="bg-primary/10 rounded-lg p-1.5 mr-2.5">
+              <Route className="text-primary" size={18} />
+            </div>
             Optimized Trip Plans
           </h2>
-          
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
-            <span className="text-muted-foreground">Calculating optimal routes...</span>
+
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary/20 border-t-primary mr-3 mb-3"></div>
+            <span className="text-sm text-muted-foreground">Calculating optimal routes...</span>
           </div>
         </CardContent>
       </Card>
@@ -61,35 +63,36 @@ export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoor
   }
 
   return (
-    <Card className="shadow-sm">
-      <CardContent className="p-6">
-        <h2 className="text-lg font-semibold mb-4 flex items-center">
-          <Route className="text-primary mr-2" size={20} />
+    <Card className="shadow-sm border-0 shadow-md">
+      <CardContent className="p-5">
+        <h2 className="text-base font-semibold mb-4 flex items-center">
+          <div className="bg-primary/10 rounded-lg p-1.5 mr-2.5">
+            <Route className="text-primary" size={18} />
+          </div>
           Optimized Trip Plans
         </h2>
 
         {tripPlans.length === 0 ? (
           <div className="text-center py-12" data-testid="no-results">
-            <Search size={64} className="mx-auto text-muted-foreground mb-4 opacity-50" />
-            <h3 className="text-lg font-medium mb-2">No trip plans found</h3>
-            <p className="text-muted-foreground mb-4">
-              Try adjusting your location, radius, or item list.
+            <div className="bg-muted rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+              <Search size={28} className="text-muted-foreground opacity-50" />
+            </div>
+            <h3 className="text-base font-medium mb-1.5">No trip plans yet</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Add items to your list and generate plans to see optimized routes.
             </p>
-            <Button variant="outline">
-              Adjust Filters
-            </Button>
           </div>
         ) : (
-          <div className="space-y-4" data-testid="trip-plans">
+          <div className="space-y-3" data-testid="trip-plans">
             {tripPlans.map((plan, index) => (
               <div
                 key={index}
-                className="border border-border rounded-lg p-4 hover:shadow-md transition-shadow"
+                className="border border-border rounded-xl p-4 hover:shadow-md hover:border-primary/20 transition-all"
                 data-testid={`trip-plan-${index}`}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center">
-                    <div className="bg-primary text-primary-foreground rounded-full w-8 h-8 flex items-center justify-center text-sm font-semibold mr-3">
+                    <div className="bg-gradient-to-br from-primary to-emerald-600 text-white rounded-lg w-8 h-8 flex items-center justify-center text-sm font-bold mr-3 shadow-sm">
                       {index + 1}
                     </div>
                     <div>
@@ -109,24 +112,24 @@ export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoor
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div className="text-center">
-                    <div className="text-sm font-medium flex items-center justify-center">
-                      <Clock size={14} className="mr-1" />
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="text-center p-2 bg-muted/50 rounded-lg">
+                    <div className="text-sm font-semibold flex items-center justify-center">
+                      <Clock size={13} className="mr-1 text-muted-foreground" />
                       {formatTime(plan.totalTime)}
                     </div>
-                    <div className="text-xs text-muted-foreground">Travel Time</div>
+                    <div className="text-xs text-muted-foreground">Time</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-sm font-medium flex items-center justify-center">
-                      <MapPin size={14} className="mr-1" />
+                  <div className="text-center p-2 bg-muted/50 rounded-lg">
+                    <div className="text-sm font-semibold flex items-center justify-center">
+                      <MapPin size={13} className="mr-1 text-muted-foreground" />
                       {plan.totalDistance.toFixed(1)} mi
                     </div>
                     <div className="text-xs text-muted-foreground">Distance</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-sm font-medium flex items-center justify-center">
-                      <Star size={14} className="mr-1" />
+                  <div className="text-center p-2 bg-muted/50 rounded-lg">
+                    <div className="text-sm font-semibold flex items-center justify-center">
+                      <Star size={13} className="mr-1 text-muted-foreground" />
                       {Math.round(plan.score)}
                     </div>
                     <div className="text-xs text-muted-foreground">Score</div>
