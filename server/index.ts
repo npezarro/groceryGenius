@@ -9,6 +9,7 @@ import "./auth"; // loads session type augmentation
 const MemoryStore = memorystore(session);
 
 const app = express();
+app.set("trust proxy", 1); // trust first proxy (Apache)
 app.use(express.json({ limit: "5mb" })); // allow receipt image uploads
 app.use(express.urlencoded({ extended: false }));
 
