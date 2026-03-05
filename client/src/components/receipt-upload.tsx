@@ -137,7 +137,7 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold flex items-center">
-            <Receipt className="text-blue-600 mr-2" size={16} />
+            <Receipt className="text-secondary mr-2" size={16} />
             Receipts
           </h3>
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowForm(!showForm)}>
@@ -251,7 +251,7 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
                   <span className="text-muted-foreground ml-2">
                     {new Date(r.uploadedAt).toLocaleDateString()}
                   </span>
-                  <span className={`ml-2 ${r.status === "processed" ? "text-green-600" : "text-yellow-600"}`}>
+                  <span className={`ml-2 ${r.status === "processed" ? "text-secondary" : "text-accent"}`}>
                     {r.status}
                   </span>
                 </div>
