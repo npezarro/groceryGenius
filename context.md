@@ -1,7 +1,8 @@
 # context.md
-Last Updated: 2026-02-28 — Auth, favorites, receipts, community pricing fully implemented
-Current State: App builds cleanly (TS + Vite + esbuild), production server starts and serves at configurable BASE_PATH. Full user authentication (session-based), favorite stores, community price submissions, and receipt upload features implemented. No database connected in this environment (needs DATABASE_URL + drizzle-kit push for new tables).
+Last Updated: 2026-03-05 — Applied runEval design system (light-only, warm earth tones)
+Current State: App builds cleanly (TS + Vite + esbuild) with new runEval design system. Colors swapped from blue/green to ink/sand/ember/moss/sky palette. Fonts changed from Roboto to Fraunces (display) + IBM Plex Sans (body). Dark mode removed (light-only). All CSS variables updated, hardcoded colors replaced with semantic tokens.
 Recent Changes:
+- Applied runEval design system: swapped all CSS variables to ink/sand/ember/moss/sky palette, replaced Roboto with Fraunces + IBM Plex Sans, removed dark mode (.dark class + darkMode config), fixed hardcoded blue/green colors in map-view, receipt-upload, submit-price, price-sparkline components, updated slider/map container styles from hsl() to direct var() references
 - Fixed server crash bugs (reusePort, throw in error handler, uncaught seed failure)
 - Fixed esbuild @shared alias so production bundle resolves shared/schema
 - Added BASE_PATH env var support for subpath hosting at pezant.ca/grocerygenius
@@ -52,4 +53,4 @@ Environment Notes:
 - Session: SESSION_SECRET env var (defaults to dev secret if unset)
 - Build: `npm run build` (Vite for client, esbuild for server)
 - Start: `npm run start` (NODE_ENV=production node dist/index.js)
-Active Branch: claude/fix-code-gcp-deploy-q5ZMg
+Active Branch: claude/runeval-design-system

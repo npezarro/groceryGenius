@@ -65,7 +65,7 @@ export default function SubmitPrice({ stores }: SubmitPriceProps) {
     <Card className="shadow-sm">
       <CardContent className="p-4">
         <h3 className="text-sm font-semibold mb-3 flex items-center">
-          <DollarSign className="text-green-600 mr-2" size={16} />
+          <DollarSign className="text-secondary mr-2" size={16} />
           Submit a Price
         </h3>
 
