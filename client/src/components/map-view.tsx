@@ -30,7 +30,7 @@ export default function MapView({ coordinates, stores, radius }: MapViewProps) {
           Store Locations
         </h2>
         
-        <div className="relative h-80 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 rounded-lg border border-border overflow-hidden">
+        <div className="relative h-80 bg-gradient-to-br from-[#f3efe6] to-[#c9d6df] rounded-lg border border-border overflow-hidden">
           {/* Mock Map Interface */}
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
             <div className="text-center">
@@ -38,7 +38,7 @@ export default function MapView({ coordinates, stores, radius }: MapViewProps) {
               <p className="text-sm">Interactive Map with Store Locations</p>
               <p className="text-xs mt-1">Powered by Mapbox</p>
               {coordinates && (
-                <p className="text-xs mt-2 bg-white/80 dark:bg-black/80 rounded px-2 py-1">
+                <p className="text-xs mt-2 bg-white/80 rounded px-2 py-1">
                   Center: {coordinates.lat.toFixed(4)}, {coordinates.lng.toFixed(4)}
                 </p>
               )}
@@ -56,7 +56,7 @@ export default function MapView({ coordinates, stores, radius }: MapViewProps) {
           </div>
 
           {/* Legend */}
-          <div className="absolute bottom-4 left-4 bg-white/95 dark:bg-black/95 border border-border rounded p-3 shadow-sm">
+          <div className="absolute bottom-4 left-4 bg-white/95 border border-border rounded p-3 shadow-sm">
             <div className="space-y-1 text-xs">
               <div className="flex items-center">
                 <div className="w-3 h-3 bg-primary rounded-full mr-2"></div>

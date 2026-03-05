@@ -157,7 +157,7 @@ export default function PriceSparkline({
             {trend && (
               <div className="flex items-center">
                 {trend.direction === 'up' && <TrendingUp size={12} className="text-red-500" />}
-                {trend.direction === 'down' && <TrendingDown size={12} className="text-green-500" />}
+                {trend.direction === 'down' && <TrendingDown size={12} className="text-secondary" />}
                 {trend.direction === 'stable' && <Minus size={12} className="text-gray-500" />}
               </div>
             )}
