@@ -150,16 +150,18 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-card border-b border-border shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <header className="bg-[#f9f7f2] border-b border-border/80">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-              <svg className="w-8 h-8 text-primary" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-8 h-8 text-foreground" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M7 4V2C7 1.45 7.45 1 8 1H16C16.55 1 17 1.45 17 2V4H20C20.55 4 21 4.45 21 5S20.55 6 20 6H19V19C19 20.1 18.1 21 17 21H7C5.9 21 5 20.1 5 19V6H4C3.45 6 3 5.55 3 5S3.45 4 4 4H7ZM9 3V4H15V3H9ZM7 6V19H17V6H7Z"/>
               </svg>
-              <h1 className="text-xl font-bold font-serif text-foreground">Grocery Trip Planner</h1>
+              <h1 className="text-3xl font-medium font-serif tracking-tight text-foreground">Grocery Genius</h1>
             </div>
-            <nav className="flex items-center space-x-4">
+            <nav className="flex items-center space-x-5 text-sm">
+              <a href="#planner" className="hidden md:inline text-muted-foreground hover:text-foreground">Planner</a>
+              <a href="#admin" className="hidden md:inline text-muted-foreground hover:text-foreground">Admin</a>
               {user ? (
                 <>
                   <span className="text-sm text-muted-foreground hidden sm:inline">
@@ -173,7 +175,7 @@ export default function Home() {
                   </button>
                 </>
               ) : (
-                <Link href="/auth" className="text-sm text-primary font-medium hover:underline">
+                <Link href="/auth" className="inline-flex h-9 items-center px-5 rounded-full border border-input bg-background hover:bg-muted transition-colors font-medium">
                   Sign In
                 </Link>
               )}
@@ -182,7 +184,44 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+          <div className="space-y-6">
+            <p className="text-xs tracking-[0.4em] text-[#2f5d4d] uppercase">Grocery Planning</p>
+            <h2 className="text-5xl md:text-6xl font-serif leading-[1.05] tracking-tight max-w-xl">
+              Turn your grocery list into a clear optimized trip plan.
+            </h2>
+            <p className="text-2xl text-muted-foreground leading-relaxed max-w-2xl">
+              Add your items, set location preferences, compare routes, and generate actionable plans with a calmer runEval-style interface.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm min-h-[300px]">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-4xl font-serif">Snapshot</h3>
+              <span className="text-xs rounded-full px-3 py-1 bg-muted text-muted-foreground font-semibold">LIVE</span>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="rounded-2xl border border-border bg-background p-3 text-center">
+                <p className="text-xs text-muted-foreground">Items</p>
+                <p className="text-3xl font-semibold">{shoppingItems.length}</p>
+              </div>
+              <div className="rounded-2xl border border-border bg-background p-3 text-center">
+                <p className="text-xs text-muted-foreground">Stores</p>
+                <p className="text-3xl font-semibold">{stores.length}</p>
+              </div>
+              <div className="rounded-2xl border border-border bg-background p-3 text-center">
+                <p className="text-xs text-muted-foreground">Plans</p>
+                <p className="text-3xl font-semibold">{tripPlans.length}</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+              Your planner updates in real-time as you add items and tune optimization weights.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="max-w-7xl mx-auto px-6 lg:px-10 pb-10">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8" id="planner">
           {/* Left Sidebar */}
           <div className="lg:col-span-1 space-y-6">
