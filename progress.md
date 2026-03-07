@@ -1,6 +1,7 @@
 # Progress Log
 
 > Continuously updated log of all work done on this project. Add entries in reverse chronological order (newest first). One entry per PR, deploy, or significant change. Keep entries concise -- 1-2 lines max.
+> Continuously updated log of all work done on this project. Add entries in reverse chronological order (newest first). One entry per PR, deploy, or significant change. Keep entries concise — 1-2 lines max.
 >
 > **Update rules:**
 > - Add an entry for every merged PR or significant commit
@@ -22,3 +23,10 @@
 | 2026-03-05 | PR | Apply runEval design system -- light-only warm palette |
 | 2026-03-04 | infra | Propagate Claude Code hooks and CLAUDE.md from agentGuidance |
 | 2026-03-01 | PR | Add BASE_PATH support for subpath hosting and Docker deployment |
+| 2026-03-06 | PR #8 | Fix blank page and add Nominatim geocoding fallback |
+| 2026-03-06 | deploy | Deployed geocoding fix and blank page fix to production |
+| 2026-03-05 | PR #5 | Restyle Grocery Genius UI to align with runEval visual style |
+| 2026-03-05 | PR #4 | Apply runEval design system — light-only warm palette |
+| 2026-03-04 | infra | Propagate Claude Code hooks and CLAUDE.md from agentGuidance |
+| 2026-03-01 | PR #2 | Add BASE_PATH support for subpath hosting and Docker deployment |
+| 2026-02-28 | PR #1 | Add BASE_PATH support for subpath hosting and Docker deployment |
