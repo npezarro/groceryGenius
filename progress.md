@@ -16,6 +16,7 @@
 | 2026-03-10 | refactor | ESLint 9 setup with TS/React support; removed unused imports, dead functions (getDistanceMatrix, checkAdminAuth), and dead exports across client/src and server/ |
 | 2026-03-10 | feature | Mobile tabbed layout: Radix Tabs with Shopping List / Map / Trip Plans tabs for viewports <768px; desktop grid unchanged |
 | 2026-03-10 | security | Security hardening: admin seed auth guard, required session secret, helmet headers, payload size limit, validateInput middleware, vitest security tests |
+| 2026-03-07 | feat | Add multi-source price data pipeline with BLS adapter, Kroger/TJ/Safeway/WF templates, scheduler, and admin API |
 | 2026-03-07 | fix | Fix broken auth (trust proxy, connect-pg-simple sessions), protect admin seed endpoint, clean up dead code |
 | 2026-03-06 | fix | Add Nominatim geocoding fallback and harden deployment |
 | 2026-03-06 | fix | Fix blank page: set BASE_PATH for Vite build and switch to standard pg driver |
