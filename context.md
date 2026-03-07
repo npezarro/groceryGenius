@@ -1,23 +1,28 @@
 # context.md
-Last Updated: 2026-03-07 — Fixed broken auth, persistent sessions, and hardened admin endpoint
-Current State: App is live at pezant.ca/grocerygenius. Authentication now works correctly behind Apache reverse proxy (trust proxy + Secure cookies). Sessions persist across PM2 restarts via connect-pg-simple (PostgreSQL). Admin seed endpoint requires ADMIN_KEY header.
+Last Updated: 2026-03-07 — Added multi-source grocery price data pipeline
+Current State: App is live at pezant.ca/grocerygenius. Price data pipeline with 5 source adapters is deployed and running. BLS adapter is actively ingesting real average grocery prices (23 items). Scheduler runs every 6 hours. Pipeline admin API available for manual triggers.
 Recent Changes:
-- Fixed broken auth: added `trust proxy` so Express sets Secure cookies behind Apache reverse proxy
-- Replaced MemoryStore with connect-pg-simple for persistent sessions across restarts
-- Re-enabled ADMIN_KEY auth check on POST /api/admin/seed (was disabled, allowing anyone to seed data)
-- Removed dead checkAdminAuth function and unused schema imports
-- Added input validation for store distance query params (lat, lng, radius)
+- Built multi-source price data pipeline in server/pipeline/ with adapter pattern
+- Added BLS Average Prices adapter (working — ingests real USDA grocery prices)
+- Added Kroger API adapter (ready — needs KROGER_CLIENT_ID/SECRET env vars)
+- Added Trader Joe's, Safeway, Whole Foods adapters (template — stores use bot protection/SPA rendering, need Playwright for full scraping)
+- Added scrape_runs table for pipeline run tracking and monitoring
+- Added node-cron scheduler (every 6h) and manual trigger API endpoints
+- Added pipeline status/monitoring endpoints (GET /api/pipeline/sources, /api/pipeline/runs)
+- Added ADMIN_KEY to ecosystem config for pipeline trigger auth
 Open Work:
-- MapView component is still a placeholder (no real Mapbox GL JS integration)
-- JS bundle is ~726KB — could benefit from code splitting
+- Kroger API: Register at developer.kroger.com, set KROGER_CLIENT_ID and KROGER_CLIENT_SECRET
+- Store scrapers (TJ's, Safeway, WF): Need Playwright/headless browser for JS-rendered pages — too heavy for 150MB PM2 limit, consider separate pipeline process
+- BLS_API_KEY: Optional, register at bls.gov for higher rate limits
+- MapView component is still a placeholder
 - Receipt OCR: currently manual entry only
 Environment Notes:
 - Deploy: pezant.ca/grocerygenius via Apache ProxyPass → localhost:8080
-- PM2 process: grocerygenius (id 1)
+- PM2 process: grocerygenius (max 150MB)
 - BASE_PATH: /grocerygenius (build time for Vite, runtime for Express)
 - Port: 8080 (production), 5000 (dev)
 - Database: local PostgreSQL via DATABASE_URL
-- Sessions: PostgreSQL via connect-pg-simple (table auto-created)
-- Build: `npm run build:deploy` (sets BASE_PATH, runs Vite + esbuild)
-- Start: `npm run start` (NODE_ENV=production node dist/index.js)
-Active Branch: claude/fix-blank-page-base-path
+- Sessions: PostgreSQL via connect-pg-simple
+- Pipeline scheduler: node-cron, runs every 6 hours at :15 past
+- Pipeline API: POST /api/pipeline/run (all), POST /api/pipeline/run/:sourceId (single) — requires X-Admin-Key header
+Active Branch: claude/price-pipeline
