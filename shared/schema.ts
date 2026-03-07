@@ -107,6 +107,19 @@ export const receipts = pgTable("receipts", {
   uploadedAt: timestamp("uploaded_at").defaultNow(),
 });
 
+// ── Pipeline tracking ───────────────────────────────────
+
+export const scrapeRuns = pgTable("scrape_runs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  source: text("source").notNull(),
+  storeId: text("store_id").notNull(),
+  status: text("status").notNull().default("running"), // running | completed | failed
+  itemCount: integer("item_count").notNull().default(0),
+  errorSummary: text("error_summary"),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
 // ── Relations ───────────────────────────────────────────
 
 export const storesRelations = relations(stores, ({ many }) => ({
@@ -237,6 +250,11 @@ export const insertReceiptSchema = createInsertSchema(receipts).omit({
   uploadedAt: true,
 });
 
+export const insertScrapeRunSchema = createInsertSchema(scrapeRuns).omit({
+  id: true,
+  startedAt: true,
+});
+
 // ── Types ───────────────────────────────────────────────
 
 export type Store = typeof stores.$inferSelect;
@@ -257,3 +275,5 @@ export type UserFavoriteStore = typeof userFavoriteStores.$inferSelect;
 export type InsertFavoriteStore = z.infer<typeof insertFavoriteStoreSchema>;
 export type Receipt = typeof receipts.$inferSelect;
 export type InsertReceipt = z.infer<typeof insertReceiptSchema>;
+export type ScrapeRun = typeof scrapeRuns.$inferSelect;
+export type InsertScrapeRun = z.infer<typeof insertScrapeRunSchema>;
