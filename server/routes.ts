@@ -5,7 +5,7 @@ import { insertStoreSchema, insertItemSchema, insertPriceSchema, insertShoppingL
 import { db } from "./db";
 import { z } from "zod";
 import { seedTopUp, type SeedMode } from "./seed";
-import { hashPassword, verifyPassword, requireAuth } from "./auth";
+import { hashPassword, verifyPassword, requireAuth, validateInput } from "./auth";
 
 // Geocoding — Mapbox primary, Nominatim (OpenStreetMap) fallback
 async function geocodeWithNominatim(address: string): Promise<{ lat: number; lng: number } | null> {
@@ -370,7 +370,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   router.post("/api/admin/seed", async (req, res) => {
-    // Admin key requirement removed for easier test data loading
+    if (!isAuthorized(req)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
 
     // Accept mode via query (?mode=prices) or JSON body { mode, force }
     const modeQ = (req.query?.mode as string)?.toLowerCase();
@@ -756,14 +758,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Auth routes ───────────────────────────────────────
 
-  router.post("/api/auth/register", async (req: Request, res: Response) => {
+  const registerSchema = z.object({
+    username: z.string().min(3).max(50),
+    email: z.string().email().optional(),
+    password: z.string().min(6),
+    displayName: z.string().max(100).optional(),
+  });
+
+  const loginSchema = z.object({
+    username: z.string().min(1, "Username is required"),
+    password: z.string().min(1, "Password is required"),
+  });
+
+  router.post("/api/auth/register", validateInput(registerSchema), async (req: Request, res: Response) => {
     try {
-      const body = z.object({
-        username: z.string().min(3).max(50),
-        email: z.string().email().optional(),
-        password: z.string().min(6),
-        displayName: z.string().max(100).optional(),
-      }).parse(req.body);
+      const body = req.body;
 
       const existing = await storage.getUserByUsername(body.username);
       if (existing) {
@@ -787,20 +796,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.userId = user.id;
       res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0].message });
-      }
       console.error("Register error:", error);
       res.status(500).json({ error: "Registration failed" });
     }
   });
 
-  router.post("/api/auth/login", async (req: Request, res: Response) => {
+  router.post("/api/auth/login", validateInput(loginSchema), async (req: Request, res: Response) => {
     try {
-      const { username, password } = z.object({
-        username: z.string(),
-        password: z.string(),
-      }).parse(req.body);
+      const { username, password } = req.body;
 
       const user = await storage.getUserByUsername(username);
       if (!user || !(await verifyPassword(user.password, password))) {
@@ -810,9 +813,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.userId = user.id;
       res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0].message });
-      }
       res.status(500).json({ error: "Login failed" });
     }
   });
