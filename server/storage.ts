@@ -4,7 +4,7 @@ import {
   type Store, type Item, type Price, type StoreItem, type ShoppingList, type TripPlan, type User,
   type InsertStore, type InsertItem, type InsertPrice, type InsertStoreItem,
   type InsertShoppingList, type InsertTripPlan, type InsertUser,
-  type UserFavoriteStore, type InsertFavoriteStore,
+  type UserFavoriteStore,
   type Receipt, type InsertReceipt
 } from "@shared/schema";
 import { db } from "./db";

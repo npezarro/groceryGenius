@@ -6,3 +6,4 @@ ecosystem.config.cjs
 server/public
 vite.config.ts.*
 *.tar.gz
+core

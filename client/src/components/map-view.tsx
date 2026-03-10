@@ -9,7 +9,7 @@ interface MapViewProps {
   radius: number;
 }
 
-export default function MapView({ coordinates, stores, radius }: MapViewProps) {
+export default function MapView({ coordinates, stores, radius: _radius }: MapViewProps) {
   const storesWithCoords = stores.filter(store => store.lat && store.lng);
   const avgDistance = storesWithCoords.length > 0 
     ? (storesWithCoords.reduce((sum, store) => {

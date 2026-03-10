@@ -13,6 +13,7 @@
 
 | Date | Type | Description |
 |------|------|-------------|
+| 2026-03-10 | refactor | ESLint 9 setup with TS/React support; removed unused imports, dead functions (getDistanceMatrix, checkAdminAuth), and dead exports across client/src and server/ |
 | 2026-03-10 | feature | Mobile tabbed layout: Radix Tabs with Shopping List / Map / Trip Plans tabs for viewports <768px; desktop grid unchanged |
 | 2026-03-10 | security | Security hardening: admin seed auth guard, required session secret, helmet headers, payload size limit, validateInput middleware, vitest security tests |
 | 2026-03-06 | PR | Fix blank page and add Nominatim geocoding fallback |
