@@ -12,12 +12,15 @@ import ReceiptUpload from "@/components/receipt-upload";
 import { ShoppingListItem, LocationCoordinates, TripWeights, TripPlan } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { apiRequest } from "@/lib/queryClient";
 import { apiUrl } from "@/lib/api";
 
 export default function Home() {
   const { toast } = useToast();
   const { user, logout } = useAuth();
+  const isMobile = useIsMobile();
   
   // State
   const [shoppingItems, setShoppingItems] = useState<ShoppingListItem[]>([]);
@@ -221,54 +224,118 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto px-6 lg:px-10 pb-10">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8" id="planner">
-          {/* Left Sidebar */}
-          <div className="lg:col-span-1 space-y-6">
-            <ShoppingList
-              items={shoppingItems}
-              onItemsChange={setShoppingItems}
-              userHasMembership={userHasMembership}
-            />
-            
-            <LocationPreferences
-              location={location}
-              coordinates={coordinates}
-              radius={radius}
-              weights={weights}
-              userHasMembership={userHasMembership}
-              onLocationChange={setLocation}
-              onCoordinatesChange={setCoordinates}
-              onRadiusChange={setRadius}
-              onWeightsChange={setWeights}
-              onMembershipChange={setUserHasMembership}
-              onGeneratePlans={handleGeneratePlans}
-              isGenerating={generatePlansMutation.isPending}
-            />
+      <div className="max-w-7xl mx-auto px-6 lg:px-10 pb-10" id="planner">
+        {isMobile ? (
+          /* Mobile: Tabbed layout */
+          <Tabs defaultValue="shopping" className="w-full">
+            <TabsList className="sticky top-0 z-10 grid w-full grid-cols-3 bg-muted">
+              <TabsTrigger value="shopping">Shopping List</TabsTrigger>
+              <TabsTrigger value="map">Map</TabsTrigger>
+              <TabsTrigger value="trips">Trip Plans</TabsTrigger>
+            </TabsList>
 
-            <FavoriteStores stores={stores} />
-            <SubmitPrice stores={stores} />
-            <ReceiptUpload stores={stores} />
-          </div>
+            <TabsContent value="shopping" className="min-h-[calc(100vh-8rem)]">
+              <div className="space-y-6 pt-2">
+                <ShoppingList
+                  items={shoppingItems}
+                  onItemsChange={setShoppingItems}
+                  userHasMembership={userHasMembership}
+                />
 
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            <MapView
-              coordinates={coordinates}
-              stores={stores}
-              radius={radius}
-            />
-            
-            <TripPlans
-              tripPlans={tripPlans}
-              isLoading={generatePlansMutation.isPending}
-              onSelectPlan={handleSelectPlan}
-              userCoordinates={coordinates}
-            />
-            
-            <AdminPanel />
+                <LocationPreferences
+                  location={location}
+                  coordinates={coordinates}
+                  radius={radius}
+                  weights={weights}
+                  userHasMembership={userHasMembership}
+                  onLocationChange={setLocation}
+                  onCoordinatesChange={setCoordinates}
+                  onRadiusChange={setRadius}
+                  onWeightsChange={setWeights}
+                  onMembershipChange={setUserHasMembership}
+                  onGeneratePlans={handleGeneratePlans}
+                  isGenerating={generatePlansMutation.isPending}
+                />
+
+                <FavoriteStores stores={stores} />
+                <SubmitPrice stores={stores} />
+                <ReceiptUpload stores={stores} />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="map" className="min-h-[calc(100vh-8rem)]">
+              <div className="space-y-6 pt-2">
+                <MapView
+                  coordinates={coordinates}
+                  stores={stores}
+                  radius={radius}
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="trips" className="min-h-[calc(100vh-8rem)]">
+              <div className="space-y-6 pt-2">
+                <TripPlans
+                  tripPlans={tripPlans}
+                  isLoading={generatePlansMutation.isPending}
+                  onSelectPlan={handleSelectPlan}
+                  userCoordinates={coordinates}
+                />
+
+                <AdminPanel />
+              </div>
+            </TabsContent>
+          </Tabs>
+        ) : (
+          /* Desktop: Original 3-column grid layout */
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left Sidebar */}
+            <div className="lg:col-span-1 space-y-6">
+              <ShoppingList
+                items={shoppingItems}
+                onItemsChange={setShoppingItems}
+                userHasMembership={userHasMembership}
+              />
+
+              <LocationPreferences
+                location={location}
+                coordinates={coordinates}
+                radius={radius}
+                weights={weights}
+                userHasMembership={userHasMembership}
+                onLocationChange={setLocation}
+                onCoordinatesChange={setCoordinates}
+                onRadiusChange={setRadius}
+                onWeightsChange={setWeights}
+                onMembershipChange={setUserHasMembership}
+                onGeneratePlans={handleGeneratePlans}
+                isGenerating={generatePlansMutation.isPending}
+              />
+
+              <FavoriteStores stores={stores} />
+              <SubmitPrice stores={stores} />
+              <ReceiptUpload stores={stores} />
+            </div>
+
+            {/* Main Content */}
+            <div className="lg:col-span-2 space-y-6">
+              <MapView
+                coordinates={coordinates}
+                stores={stores}
+                radius={radius}
+              />
+
+              <TripPlans
+                tripPlans={tripPlans}
+                isLoading={generatePlansMutation.isPending}
+                onSelectPlan={handleSelectPlan}
+                userCoordinates={coordinates}
+              />
+
+              <AdminPanel />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
