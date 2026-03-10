@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +24,7 @@ interface PricePoint {
 
 export default function PriceSparkline({ 
   itemId, 
-  itemName, 
+  itemName: _itemName,
   storeId, 
   storeName, 
   currentPrice,

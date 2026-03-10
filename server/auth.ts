@@ -1,7 +1,7 @@
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import type { Request, Response, NextFunction } from "express";
-import { type ZodSchema, ZodError } from "zod";
+import { type ZodSchema } from "zod";
 import "express-session";
 
 declare module "express-session" {
