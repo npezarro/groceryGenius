@@ -1,21 +1,33 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import helmet from "helmet";
 import memorystore from "memorystore";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { seedTopUp } from "./seed";
 import "./auth"; // loads session type augmentation
 
+if (!process.env.SESSION_SECRET) {
+  throw new Error(
+    "SESSION_SECRET environment variable is required. " +
+    "Generate one with: node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\""
+  );
+}
+
 const MemoryStore = memorystore(session);
 
 const app = express();
-app.use(express.json({ limit: "5mb" })); // allow receipt image uploads
+
+// Security headers
+app.use(helmet());
+
+app.use(express.json({ limit: "10mb" })); // cap payload size (covers receipt image uploads)
 app.use(express.urlencoded({ extended: false }));
 
 // Session middleware
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "grocery-genius-dev-secret",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     store: new MemoryStore({ checkPeriod: 86400000 }),
@@ -23,7 +35,7 @@ app.use(
       secure: process.env.NODE_ENV === "production" && !process.env.INSECURE_COOKIES,
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      sameSite: "lax",
+      sameSite: "strict",
     },
   })
 );
