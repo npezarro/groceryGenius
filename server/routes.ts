@@ -1,7 +1,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertStoreSchema, insertItemSchema, insertPriceSchema, insertShoppingListSchema, prices } from "@shared/schema";
+import { insertShoppingListSchema, prices } from "@shared/schema";
 import { db } from "./db";
 import { z } from "zod";
 import { seedTopUp, type SeedMode } from "./seed";
@@ -52,34 +52,6 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
   }
 }
 
-async function getDistanceMatrix(origins: [number, number][], destinations: [number, number][]): Promise<any> {
-  const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN || process.env.MAPBOX_TOKEN;
-  if (!mapboxToken) {
-    throw new Error("Mapbox access token not configured");
-  }
-
-  try {
-    const allCoords = [...origins, ...destinations];
-    const coordString = allCoords.map(coord => `${coord[0]},${coord[1]}`).join(';');
-    
-    const sources = origins.map((_, index) => index).join(';');
-    const destinations_param = destinations.map((_, index) => origins.length + index).join(';');
-    
-    const response = await fetch(
-      `https://api.mapbox.com/directions-matrix/v1/mapbox/driving/${coordString}?sources=${sources}&destinations=${destinations_param}&access_token=${mapboxToken}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Mapbox Matrix API error: ${response.statusText}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error("Distance matrix error:", error);
-    throw error;
-  }
-}
-
 // CSV parsing utility
 function parseCSV(csvText: string): string[][] {
   const lines = csvText.split('\n').filter(line => line.trim());
@@ -113,7 +85,7 @@ function calculateEffectivePrice(price: any, userHasMembership: boolean = false)
   
   // Start with original price or current price as fallback
   let effectivePrice = parseFloat(price.originalPrice || price.price);
-  let currentPrice = parseFloat(price.price);
+  const currentPrice = parseFloat(price.price);
   
   // Check if promotion is active
   const isActivePromotion = price.isPromotion && 
@@ -343,12 +315,6 @@ async function generateTripPlans(
   return finalPlans;
 }
 
-function checkAdminAuth(req: Request) {
-  const key = process.env.ADMIN_KEY;
-  const header = req.headers["x-admin-key"];
-  return Boolean(key) && header === key;
-}
-
 export async function registerRoutes(app: Express): Promise<Server> {
   const basePath = process.env.BASE_PATH || "";
   const router = express.Router();
@@ -383,7 +349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const result = await seedTopUp(mode, force);
       res.json(result);
-    } catch (e) {
+    } catch (_e) {
       res.status(500).json({ ok: false, error: "seed_failed" });
     }
   });
@@ -403,7 +369,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const lists = await storage.getAllShoppingLists();
       res.json(lists);
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Failed to fetch shopping lists" });
     }
   });
@@ -421,7 +387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json(items);
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Failed to fetch items" });
     }
   });
@@ -442,7 +408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const stores = await storage.getAllStores();
         res.json(stores);
       }
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Failed to fetch stores" });
     }
   });
@@ -751,7 +717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const stats = await storage.getDataStats();
       res.json(stats);
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Failed to fetch stats" });
     }
   });
@@ -812,7 +778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       req.session.userId = user.id;
       res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName });
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Login failed" });
     }
   });
@@ -840,7 +806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const favorites = await storage.getFavoriteStores(req.session.userId!);
       res.json(favorites);
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Failed to fetch favorites" });
     }
   });
@@ -849,7 +815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const fav = await storage.addFavoriteStore(req.session.userId!, req.params.storeId);
       res.json(fav);
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Failed to add favorite" });
     }
   });
@@ -858,7 +824,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.removeFavoriteStore(req.session.userId!, req.params.storeId);
       res.json({ ok: true });
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Failed to remove favorite" });
     }
   });
@@ -902,7 +868,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const communityPrices = await storage.getCommunityPricesForItem(req.params.itemId);
       res.json(communityPrices);
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Failed to fetch community prices" });
     }
   });
@@ -950,7 +916,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const receipts = await storage.getUserReceipts(req.session.userId!);
       res.json(receipts);
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Failed to fetch receipts" });
     }
   });
@@ -960,7 +926,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const receipt = await storage.getReceipt(req.params.id, req.session.userId!);
       if (!receipt) return res.status(404).json({ error: "Receipt not found" });
       res.json(receipt);
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Failed to fetch receipt" });
     }
   });
