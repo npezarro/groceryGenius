@@ -36,6 +36,7 @@
 | 2026-03-04 | feat | Add custom grocery store ordering feature |
 | 2026-03-04 | PR #1 | Fix bugs and add GCP subpath deployment support |
 | 2026-03-01 | PR | Add BASE_PATH support for subpath hosting and Docker deployment |
+| 2026-03-10 | feat | Add drag-and-drop reordering to shopping list using framer-motion Reorder API |
 | 2026-03-06 | PR #8 | Fix blank page and add Nominatim geocoding fallback |
 | 2026-03-06 | deploy | Deployed geocoding fix and blank page fix to production |
 | 2026-03-05 | PR #5 | Restyle Grocery Genius UI to align with runEval visual style |
