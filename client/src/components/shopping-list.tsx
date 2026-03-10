@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Reorder, useDragControls } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Upload, Plus, List, TrendingUp } from "lucide-react";
+import { X, Upload, Plus, List, TrendingUp, GripVertical } from "lucide-react";
 import { ShoppingListItem } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
 import PriceSparkline from "./price-sparkline";
@@ -13,6 +14,73 @@ interface ShoppingListProps {
   items: ShoppingListItem[];
   onItemsChange: (items: ShoppingListItem[]) => void;
   userHasMembership?: boolean;
+}
+
+function DraggableItem({
+  item,
+  itemId,
+  onRemove,
+  userHasMembership,
+}: {
+  item: ShoppingListItem;
+  itemId: string | null;
+  onRemove: (id: string) => void;
+  userHasMembership: boolean;
+}) {
+  const controls = useDragControls();
+
+  return (
+    <Reorder.Item
+      value={item}
+      dragListener={false}
+      dragControls={controls}
+      className="p-3 bg-muted rounded-md cursor-default"
+      whileDrag={{
+        scale: 1.03,
+        boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15), 0 4px 6px -2px rgba(0,0,0,0.08)",
+        zIndex: 50,
+      }}
+      data-testid={`item-${item.id}`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <div
+            onPointerDown={(e) => controls.start(e)}
+            className="cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <GripVertical size={16} />
+          </div>
+          <span className="text-sm font-medium">{item.name}</span>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => onRemove(item.id)}
+          className="text-destructive hover:text-destructive/80 h-6 w-6 p-0"
+          data-testid={`button-remove-${item.id}`}
+        >
+          <X size={14} />
+        </Button>
+      </div>
+
+      {itemId ? (
+        <div className="flex items-center space-x-2">
+          <TrendingUp size={12} className="text-muted-foreground" />
+          <PriceSparkline
+            itemId={itemId}
+            itemName={item.name}
+            className="flex-1"
+            userHasMembership={userHasMembership}
+          />
+        </div>
+      ) : (
+        <div className="text-xs text-muted-foreground flex items-center">
+          <TrendingUp size={12} className="mr-1 opacity-50" />
+          <span>Price history not available</span>
+        </div>
+      )}
+    </Reorder.Item>
+  );
 }
 
 export default function ShoppingList({ items, onItemsChange, userHasMembership = false }: ShoppingListProps) {
@@ -169,7 +237,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
           <h3 className="text-sm font-medium text-muted-foreground mb-2">
             Current List ({items.length} items)
           </h3>
-          
+
           {items.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <List size={48} className="mx-auto mb-2 opacity-50" />
@@ -177,48 +245,23 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
               <p className="text-sm">Add items above to get started</p>
             </div>
           ) : (
-            <div className="space-y-3" data-testid="shopping-list-items">
-              {items.map((item) => {
-                const itemId = getItemId(item.name);
-                return (
-                  <div
-                    key={item.id}
-                    className="p-3 bg-muted rounded-md"
-                    data-testid={`item-${item.id}`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">{item.name}</span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => removeItem(item.id)}
-                        className="text-destructive hover:text-destructive/80 h-6 w-6 p-0"
-                        data-testid={`button-remove-${item.id}`}
-                      >
-                        <X size={14} />
-                      </Button>
-                    </div>
-                    
-                    {itemId ? (
-                      <div className="flex items-center space-x-2">
-                        <TrendingUp size={12} className="text-muted-foreground" />
-                        <PriceSparkline
-                          itemId={itemId}
-                          itemName={item.name}
-                          className="flex-1"
-                          userHasMembership={userHasMembership}
-                        />
-                      </div>
-                    ) : (
-                      <div className="text-xs text-muted-foreground flex items-center">
-                        <TrendingUp size={12} className="mr-1 opacity-50" />
-                        <span>Price history not available</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <Reorder.Group
+              axis="y"
+              values={items}
+              onReorder={onItemsChange}
+              className="space-y-3"
+              data-testid="shopping-list-items"
+            >
+              {items.map((item) => (
+                <DraggableItem
+                  key={item.id}
+                  item={item}
+                  itemId={getItemId(item.name)}
+                  onRemove={removeItem}
+                  userHasMembership={userHasMembership}
+                />
+              ))}
+            </Reorder.Group>
           )}
         </div>
       </CardContent>
