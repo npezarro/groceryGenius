@@ -1,6 +1,7 @@
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import type { Request, Response, NextFunction } from "express";
+import { type ZodSchema, ZodError } from "zod";
 import "express-session";
 
 declare module "express-session" {
@@ -30,4 +31,20 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ error: "Authentication required" });
   }
   next();
+}
+
+/**
+ * Express middleware factory that validates req.body against a Zod schema.
+ * On success the parsed (and typed) body is written back to req.body;
+ * on failure a 400 response is returned with the first validation error.
+ */
+export function validateInput(schema: ZodSchema) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error.errors[0].message });
+    }
+    req.body = result.data;
+    next();
+  };
 }
