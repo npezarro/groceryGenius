@@ -1,18 +1,15 @@
 # context.md
-Last Updated: 2026-03-10 — Security hardening: auth guards, session secret, helmet, input validation
-Current State: App is live at pezant.ca/grocerygenius. Security hardening applied: /api/admin/seed now requires x-admin-key header, session secret is required (no hardcoded fallback), helmet adds security headers, payload size capped at 10MB, validateInput middleware extracts Zod validation for auth routes. Vitest added with 9 security tests.
+Last Updated: 2026-03-10 — Mobile tabbed layout for Shopping List, Map, Trip Plans
+Current State: App is live at pezant.ca/grocerygenius. Mobile viewport (<768px) now renders a Radix Tabs interface with three tabs (Shopping List, Map, Trip Plans) instead of the stacked single-column layout. Desktop layout (>=768px) remains unchanged as the original 3-column grid. The existing useIsMobile hook and Radix Tabs UI component were reused — no new dependencies added.
 Recent Changes:
-- Wired isAuthorized() guard on /api/admin/seed (was completely unauthenticated)
-- Removed hardcoded session secret fallback; SESSION_SECRET env var is now required at startup
-- Changed cookie sameSite from "lax" to "strict"
-- Added helmet middleware for security headers (CSP, HSTS, X-Frame-Options, etc.)
-- Increased express.json limit from 5mb to 10mb with explicit cap
-- Extracted reusable validateInput(schema) middleware in server/auth.ts
-- Wired validateInput to /api/auth/register and /api/auth/login endpoints
-- Added vitest with 9 security tests covering admin auth, session secret, and input validation
+- Added mobile tabbed layout using Radix Tabs in client/src/pages/home.tsx
+- Mobile (<768px): 3-tab interface — Shopping List, Map, Trip Plans — with sticky tab bar
+- Desktop (>=768px): original lg:grid-cols-3 layout preserved unchanged
+- Reused existing useIsMobile() hook (client/src/hooks/use-mobile.tsx) and Tabs component (client/src/components/ui/tabs.tsx)
+- No changes to panel component internals (ShoppingList, MapView, TripPlans, etc.)
 Open Work:
 - MapView component is still a placeholder (no real Mapbox GL JS integration)
-- JS bundle is ~726KB — could benefit from code splitting
+- JS bundle is ~743KB — could benefit from code splitting
 - MemoryStore for sessions should be replaced with connect-pg-simple for production
 - Receipt OCR: currently manual entry only
 Environment Notes:
@@ -25,4 +22,4 @@ Environment Notes:
 - Build: `npm run build:deploy` (sets BASE_PATH, runs Vite + esbuild)
 - Start: `npm run start` (NODE_ENV=production node dist/index.js)
 - Tests: `npm test` (vitest)
-Active Branch: claude/security-hardening
+Active Branch: claude/mobile-tabs

@@ -13,6 +13,7 @@
 
 | Date | Type | Description |
 |------|------|-------------|
+| 2026-03-10 | feature | Mobile tabbed layout: Radix Tabs with Shopping List / Map / Trip Plans tabs for viewports <768px; desktop grid unchanged |
 | 2026-03-10 | security | Security hardening: admin seed auth guard, required session secret, helmet headers, payload size limit, validateInput middleware, vitest security tests |
 | 2026-03-06 | PR | Fix blank page and add Nominatim geocoding fallback |
 | 2026-03-06 | deploy | Deployed geocoding fix and blank page fix to production |
