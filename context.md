@@ -1,17 +1,18 @@
 # context.md
-Last Updated: 2026-03-10 — Mobile tabbed layout for Shopping List, Map, Trip Plans
-Current State: App is live at pezant.ca/grocerygenius. Mobile viewport (<768px) now renders a Radix Tabs interface with three tabs (Shopping List, Map, Trip Plans) instead of the stacked single-column layout. Desktop layout (>=768px) remains unchanged as the original 3-column grid. The existing useIsMobile hook and Radix Tabs UI component were reused — no new dependencies added.
+Last Updated: 2026-03-10 — ESLint setup and dead code cleanup
+Current State: App is live at pezant.ca/grocerygenius. ESLint 9 with TypeScript + React support is now configured. Dead code removed: unused imports (useEffect, useState, ZodError, insertStoreSchema, insertItemSchema, insertPriceSchema, InsertFavoriteStore, vi), dead functions (getDistanceMatrix, checkAdminAuth), and unused catch params prefixed with _. Build and all 9 tests pass.
 Recent Changes:
-- Added mobile tabbed layout using Radix Tabs in client/src/pages/home.tsx
-- Mobile (<768px): 3-tab interface — Shopping List, Map, Trip Plans — with sticky tab bar
-- Desktop (>=768px): original lg:grid-cols-3 layout preserved unchanged
-- Reused existing useIsMobile() hook (client/src/hooks/use-mobile.tsx) and Tabs component (client/src/components/ui/tabs.tsx)
-- No changes to panel component internals (ShoppingList, MapView, TripPlans, etc.)
+- Added ESLint 9 flat config (eslint.config.js) with typescript-eslint, react-hooks, react-refresh plugins
+- Added lint/lint:fix scripts to package.json
+- Removed unused imports across 6 files (location-preferences, price-sparkline, auth, security.test, routes, storage)
+- Removed dead getDistanceMatrix function (27 lines) and checkAdminAuth function (5 lines) from routes.ts
+- Prefixed unused catch/callback params with _ (12 catch blocks in routes.ts, 2 in location-preferences, 1 each in map-view, receipt-upload, price-sparkline)
+- 28 remaining warnings are intentional: no-explicit-any (21) and react-refresh for shadcn/ui (7)
 Open Work:
 - MapView component is still a placeholder (no real Mapbox GL JS integration)
 - JS bundle is ~743KB — could benefit from code splitting
-- MemoryStore for sessions should be replaced with connect-pg-simple for production
 - Receipt OCR: currently manual entry only
+- 21 `any` types to progressively replace with proper types
 Environment Notes:
 - Deploy: pezant.ca/grocerygenius via Apache ProxyPass → localhost:8080
 - PM2 process: grocerygenius (id 1)
@@ -22,4 +23,4 @@ Environment Notes:
 - Build: `npm run build:deploy` (sets BASE_PATH, runs Vite + esbuild)
 - Start: `npm run start` (NODE_ENV=production node dist/index.js)
 - Tests: `npm test` (vitest)
-Active Branch: claude/mobile-tabs
+Active Branch: agent/lint-fixes

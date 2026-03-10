@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,7 +76,7 @@ export default function LocationPreferences({
       } else {
         throw new Error('Geocoding failed');
       }
-    } catch (error) {
+    } catch (_error) {
       toast({
         title: "Geocoding failed",
         description: "Could not find coordinates for this address",
@@ -111,7 +111,7 @@ export default function LocationPreferences({
           description: "Using your current location"
         });
       },
-      (error) => {
+      (_error) => {
         setIsGeolocating(false);
         toast({
           title: "Location access denied",

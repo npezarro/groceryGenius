@@ -97,7 +97,7 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
       if (!res.ok) throw new Error("Upload failed");
       return res.json();
     },
-    onSuccess: (receipt) => {
+    onSuccess: (_receipt) => {
       toast({ title: "Receipt uploaded" });
       qc.invalidateQueries({ queryKey: ["/api/user/receipts"] });
       // Reset form
