@@ -1,24 +1,19 @@
 # context.md
-Last Updated: 2026-03-10 — Added drag-and-drop reordering to shopping list
-Current State: App fully functional on pezant.ca/grocerygenius. Shopping list items now support drag-and-drop reordering via grip handle using framer-motion Reorder API (already a dependency — no new packages added).
-Recent Changes:
-- Added drag-and-drop reordering to shopping list items using framer-motion's Reorder API with visual feedback (scale + shadow on drag, grip handle cursor states)
-- Fixed geocoding: added Nominatim (OpenStreetMap) as fallback geocoder when MAPBOX_ACCESS_TOKEN is not set
-- Fixed database driver: switched from @neondatabase/serverless to standard pg driver
-- Applied runEval design system: ink/sand/ember/moss/sky palette, Fraunces + IBM Plex Sans fonts, light-only mode
+Last Updated: 2026-03-11 — Fixed blank page outage caused by wrong build command
+Current State: App is live at pezant.ca/grocerygenius. Site was down (blank page) because `npm run build` was used instead of `npm run build:deploy`, producing root-relative asset paths that 404'd. Rebuilt with correct paths, added loading fallback to index.html. ESLint 9 with TS/React support configured. Build and all 9 tests pass.
 Open Work:
-- MapView component is still a placeholder (no real Mapbox GL JS map integration)
-- JS bundle is ~726KB — could benefit from code splitting
+- MapView component is still a placeholder (no real Mapbox GL JS integration)
+- JS bundle is ~743KB — could benefit from code splitting
 - Receipt OCR: currently manual entry only
-- No Drizzle migration files (using drizzle-kit push)
-- MAPBOX_ACCESS_TOKEN is optional (Nominatim fallback works) but can be added for higher-quality geocoding
+- 21 `any` types to progressively replace with proper types
 Environment Notes:
-- PM2 process: grocerygenius, port 8080
-- Deploy target: pezant.ca/grocerygenius (Apache proxy → localhost:8080)
-- Source: /home/REDACTED_USER/groceryGenius
-- Production: /opt/grocerygenius
-- BASE_PATH: /grocerygenius
-- Database: local PostgreSQL via DATABASE_URL (standard pg driver)
-- Build: `npm run build` (Vite for client, esbuild for server)
-- Deploy: copy dist/ to /opt/grocerygenius/dist/, pm2 restart grocerygenius
-Active Branch: claude/drag-and-drop-reorder
+- Deploy: pezant.ca/grocerygenius via Apache ProxyPass → localhost:8080
+- PM2 process: grocerygenius (id 1)
+- BASE_PATH: /grocerygenius (build time for Vite, runtime for Express)
+- Port: 8080 (production), 5000 (dev)
+- Database: local PostgreSQL via DATABASE_URL
+- Required env vars: SESSION_SECRET, DATABASE_URL; optional: ADMIN_KEY, MAPBOX_ACCESS_TOKEN
+- Build: `npm run build:deploy` (sets BASE_PATH, runs Vite + esbuild)
+- Start: `npm run start` (NODE_ENV=production node dist/index.js)
+- Tests: `npm test` (vitest)
+Active Branch: agent/lint-fixes
