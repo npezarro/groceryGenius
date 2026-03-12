@@ -13,6 +13,7 @@
 
 | Date | Type | Description |
 |------|------|-------------|
+| 2026-03-12 | feat | Multi-store trip planning: greedy set-cover algorithm for 2-3 store combos, min/max scoring normalization, coverage-weighted ranking, color-coded coverage badge in card header |
 | 2026-03-11 | fix | Fixed blank page outage: rebuilt with `build:deploy` to restore `/grocerygenius/` asset prefix; added loading fallback to index.html for resilience |
 | 2026-03-10 | refactor | ESLint 9 setup with TS/React support; removed unused imports, dead functions (getDistanceMatrix, checkAdminAuth), and dead exports across client/src and server/ |
 | 2026-03-10 | feature | Mobile tabbed layout: Radix Tabs with Shopping List / Map / Trip Plans tabs for viewports <768px; desktop grid unchanged |
