@@ -1,11 +1,12 @@
 # context.md
-Last Updated: 2026-03-11 — Fixed blank page outage caused by wrong build command
-Current State: App is live at pezant.ca/grocerygenius. Site was down (blank page) because `npm run build` was used instead of `npm run build:deploy`, producing root-relative asset paths that 404'd. Rebuilt with correct paths, added loading fallback to index.html. ESLint 9 with TS/React support configured. Build and all 9 tests pass.
+Last Updated: 2026-03-12 | Multi-store trip planning with greedy set-cover algorithm
+Current State: App is live at pezant.ca/grocerygenius. Trip planner now generates multi-store plans (2-3 stores) using greedy set-cover, not just single-store trips. Scoring uses min/max normalization instead of hardcoded divisors, and coverage is a first-class ranking signal. Coverage badge promoted to card header with color coding (green/amber/red). Build and all 9 tests pass.
 Open Work:
 - MapView component is still a placeholder (no real Mapbox GL JS integration)
-- JS bundle is ~743KB — could benefit from code splitting
+- JS bundle is ~743KB, could benefit from code splitting
 - Receipt OCR: currently manual entry only
 - 21 `any` types to progressively replace with proper types
+- Optional: replace raw score number with semantic labels ("Best Price", "Best Coverage")
 Environment Notes:
 - Deploy: pezant.ca/grocerygenius via Apache ProxyPass → localhost:8080
 - PM2 process: grocerygenius (id 1)
