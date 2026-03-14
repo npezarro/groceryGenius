@@ -93,9 +93,23 @@ export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoor
                       {index + 1}
                     </div>
                     <div>
-                      <h3 className="font-medium">
-                        {plan.stores.length === 1 ? "Single Store Trip" : `${plan.stores.length} Store Combo`}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium">
+                          {plan.stores.length === 1 ? "Single Store Trip" : `${plan.stores.length} Store Combo`}
+                        </h3>
+                        <Badge
+                          variant={plan.coverage >= 1 ? "default" : "secondary"}
+                          className={
+                            plan.coverage >= 1
+                              ? "bg-green-600 text-white text-xs"
+                              : plan.coverage >= 0.75
+                                ? "bg-amber-500 text-white text-xs"
+                                : "bg-red-500 text-white text-xs"
+                          }
+                        >
+                          {Math.round(plan.coverage * 100)}% coverage
+                        </Badge>
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         {plan.stores.map(s => s.store.name).join(" → ")}
                       </p>
@@ -137,9 +151,6 @@ export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoor
                 <div className="mb-4">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium">Items Available</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {Math.round(plan.coverage * 100)}% coverage
-                    </Badge>
                   </div>
                   
                   {plan.stores.map((storeData, storeIndex) => (

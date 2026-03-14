@@ -118,16 +118,11 @@ async function generateTripPlans(
 ) {
   // Find items by fuzzy matching
   const allItems = await storage.getAllItems();
-  console.log(`Trip planning: Found ${allItems.length} items in database`);
-  console.log(`Trip planning: Looking for items: ${itemNames.join(', ')}`);
-  
   const matchedItems = itemNames.map(name => {
-    const exactMatch = allItems.find(item => 
+    const exactMatch = allItems.find(item =>
       item.name.toLowerCase() === name.toLowerCase()
     );
     if (exactMatch) return exactMatch;
-    
-    // Fuzzy match
     const fuzzyMatch = allItems.find(item =>
       item.name.toLowerCase().includes(name.toLowerCase()) ||
       name.toLowerCase().includes(item.name.toLowerCase())
@@ -135,185 +130,240 @@ async function generateTripPlans(
     return fuzzyMatch;
   }).filter(Boolean);
 
-  console.log(`Trip planning: Matched ${matchedItems.length} items: ${matchedItems.map(i => i?.name).join(', ')}`);
-
-  if (matchedItems.length === 0) {
-    console.log('Trip planning: No matched items found');
-    return [];
-  }
+  if (matchedItems.length === 0) return [];
 
   // Get stores within radius
   const nearbyStores = await storage.getStoresWithinRadius(userLat, userLng, radiusMiles);
   const storesWithCoords = nearbyStores.filter(store => store.lat && store.lng);
-  console.log(`Trip planning: Found ${storesWithCoords.length} stores within ${radiusMiles} miles`);
-
-  if (storesWithCoords.length === 0) {
-    console.log('Trip planning: No stores within radius');
-    return [];
-  }
+  if (storesWithCoords.length === 0) return [];
 
   // Get prices for matched items at nearby stores
   const itemIds = matchedItems.map(item => item!.id);
   const storeIds = storesWithCoords.map(store => store.id);
-  const prices = await storage.getPricesForItems(itemIds, storeIds);
-  console.log(`Trip planning: Found ${prices.length} price records for items: ${itemIds.join(', ')} at stores: ${storeIds.join(', ')}`);
+  const allPrices = await storage.getPricesForItems(itemIds, storeIds);
 
-  // Generate single-store options
-  const singleStorePlans = [];
-  console.log(`Trip planning: Generating single store plans for ${storesWithCoords.length} stores`);
-  
+  // Pre-index prices into Maps for O(1) lookups
+  const pricesByStore = new Map<string, typeof allPrices>();
+  const itemsByStore = new Map<string, Set<string>>();
   for (const store of storesWithCoords) {
-    const storePrices = prices.filter(p => p.storeId === store.id);
-    const availableItems = new Set(storePrices.map(p => p.itemId));
-    
-    console.log(`Trip planning: Store ${store.name} has ${storePrices.length} prices, ${availableItems.size} unique items`);
-    
-    if (availableItems.size === 0) {
-      console.log(`Trip planning: Skipping ${store.name} - no available items`);
-      continue;
-    }
-    
-    const totalCost = matchedItems.reduce((sum, item) => {
-      const itemPrice = storePrices.find(p => p.itemId === item!.id);
-      return sum + (itemPrice ? calculateEffectivePrice(itemPrice, userHasMembership) : 0);
-    }, 0);
-
-    const coverage = availableItems.size / matchedItems.length;
-    console.log(`Trip planning: Store ${store.name} coverage: ${(coverage * 100).toFixed(1)}% (${availableItems.size}/${matchedItems.length} items), total cost: $${totalCost}`);
-    
-    if (coverage >= 0.5) { // At least 50% coverage
-      // Calculate distance and time (simplified)
-      const distance = Math.sqrt(
-        Math.pow(userLat - store.lat!, 2) + Math.pow(userLng - store.lng!, 2)
-      ) * 69; // Rough miles conversion
-      
-      const estimatedTime = Math.max(10, distance * 3); // 3 minutes per mile + base time
-      
-      // Calculate composite score (lower is better)
-      const normalizedPrice = totalCost / 100; // Normalize to 0-1 range
-      const normalizedTime = estimatedTime / 60; // Normalize to hours
-      const normalizedDistance = distance / 10; // Normalize to 0-1 range
-      
-      const score = (
-        weights.price * normalizedPrice +
-        weights.time * normalizedTime +
-        weights.distance * normalizedDistance
-      );
-
-      singleStorePlans.push({
-        stores: [{ 
-          store, 
-          items: matchedItems.filter(item => availableItems.has(item!.id)),
-          subtotal: totalCost 
-        }],
-        totalCost,
-        totalTime: estimatedTime,
-        totalDistance: distance,
-        score: 100 - score * 10, // Invert for display (higher is better)
-        coverage
-      });
-      
-      console.log(`Trip planning: Added single-store plan for ${store.name} - ${availableItems.size} items, $${totalCost}, score: ${(100 - score * 10).toFixed(1)}`);
-    } else {
-      console.log(`Trip planning: Skipped ${store.name} - coverage ${(coverage * 100).toFixed(1)}% below 50% threshold`);
-    }
+    pricesByStore.set(store.id, []);
+    itemsByStore.set(store.id, new Set());
   }
-  
-  console.log(`Trip planning: Generated ${singleStorePlans.length} single-store plans`);
+  for (const p of allPrices) {
+    pricesByStore.get(p.storeId)?.push(p);
+    itemsByStore.get(p.storeId)?.add(p.itemId);
+  }
 
-  // Generate two-store combinations (simplified for now)
-  const twoStorePlans = [];
-  for (let i = 0; i < storesWithCoords.length && twoStorePlans.length < 3; i++) {
-    for (let j = i + 1; j < storesWithCoords.length && twoStorePlans.length < 3; j++) {
-      const store1 = storesWithCoords[i];
-      const store2 = storesWithCoords[j];
-      
-      const store1Prices = prices.filter(p => p.storeId === store1.id);
-      const store2Prices = prices.filter(p => p.storeId === store2.id);
-      
-      const allAvailableItems = new Set([
-        ...store1Prices.map(p => p.itemId),
-        ...store2Prices.map(p => p.itemId)
-      ]);
-      
-      if (allAvailableItems.size >= matchedItems.length * 0.8) { // 80% coverage
-        let totalCost = 0;
-        const store1Items = [];
-        const store2Items = [];
-        
-        for (const item of matchedItems) {
-          const price1 = store1Prices.find(p => p.itemId === item!.id);
-          const price2 = store2Prices.find(p => p.itemId === item!.id);
-          
-          if (price1 && price2) {
-            // Choose cheaper option using effective pricing
-            const effectivePrice1 = calculateEffectivePrice(price1, userHasMembership);
-            const effectivePrice2 = calculateEffectivePrice(price2, userHasMembership);
-            
-            if (effectivePrice1 <= effectivePrice2) {
-              store1Items.push(item);
-              totalCost += effectivePrice1;
-            } else {
-              store2Items.push(item);
-              totalCost += effectivePrice2;
-            }
-          } else if (price1) {
-            store1Items.push(item);
-            totalCost += calculateEffectivePrice(price1, userHasMembership);
-          } else if (price2) {
-            store2Items.push(item);
-            totalCost += calculateEffectivePrice(price2, userHasMembership);
+  // Helper: calculate distance from user to a store (in miles)
+  function distToStore(store: { lat?: number | null; lng?: number | null }) {
+    return Math.sqrt(
+      Math.pow(userLat - store.lat!, 2) + Math.pow(userLng - store.lng!, 2)
+    ) * 69;
+  }
+
+  // Helper: calculate distance between two stores
+  function distBetweenStores(
+    a: { lat?: number | null; lng?: number | null },
+    b: { lat?: number | null; lng?: number | null }
+  ) {
+    return Math.sqrt(
+      Math.pow(a.lat! - b.lat!, 2) + Math.pow(a.lng! - b.lng!, 2)
+    ) * 69;
+  }
+
+  // Helper: build a plan from a list of stores, assigning each item to cheapest source
+  function buildPlan(planStores: typeof storesWithCoords) {
+    const storeData = planStores.map(store => ({
+      store,
+      items: [] as typeof matchedItems,
+      subtotal: 0,
+      prices: pricesByStore.get(store.id) || [],
+      coveredItems: itemsByStore.get(store.id) || new Set<string>()
+    }));
+
+    let totalCost = 0;
+    let coveredCount = 0;
+
+    for (const item of matchedItems) {
+      let bestPrice = Infinity;
+      let bestStoreIdx = -1;
+
+      for (let i = 0; i < storeData.length; i++) {
+        const sp = storeData[i].prices.find(p => p.itemId === item!.id);
+        if (sp) {
+          const ep = calculateEffectivePrice(sp, userHasMembership);
+          if (ep < bestPrice) {
+            bestPrice = ep;
+            bestStoreIdx = i;
           }
         }
-        
-        // Calculate total distance and time
-        const dist1 = Math.sqrt(
-          Math.pow(userLat - store1.lat!, 2) + Math.pow(userLng - store1.lng!, 2)
-        ) * 69;
-        
-        const dist2 = Math.sqrt(
-          Math.pow(store1.lat! - store2.lat!, 2) + Math.pow(store1.lng! - store2.lng!, 2)
-        ) * 69;
-        
-        const totalDistance = dist1 + dist2;
-        const totalTime = Math.max(20, totalDistance * 3 + 10); // Additional time for second stop
-        
-        const normalizedPrice = totalCost / 100;
-        const normalizedTime = totalTime / 60;
-        const normalizedDistance = totalDistance / 20;
-        
-        const score = (
-          weights.price * normalizedPrice +
-          weights.time * normalizedTime +
-          weights.distance * normalizedDistance
-        );
+      }
 
-        twoStorePlans.push({
-          stores: [
-            { store: store1, items: store1Items, subtotal: store1Items.reduce((sum, item) => {
-              const price = store1Prices.find(p => p.itemId === item!.id);
-              return sum + (price ? calculateEffectivePrice(price, userHasMembership) : 0);
-            }, 0) },
-            { store: store2, items: store2Items, subtotal: store2Items.reduce((sum, item) => {
-              const price = store2Prices.find(p => p.itemId === item!.id);
-              return sum + (price ? calculateEffectivePrice(price, userHasMembership) : 0);
-            }, 0) }
-          ],
-          totalCost,
-          totalTime,
-          totalDistance,
-          score: 100 - score * 10,
-          coverage: (store1Items.length + store2Items.length) / matchedItems.length
-        });
+      if (bestStoreIdx >= 0) {
+        storeData[bestStoreIdx].items.push(item);
+        storeData[bestStoreIdx].subtotal += bestPrice;
+        totalCost += bestPrice;
+        coveredCount++;
+      }
+    }
+
+    // Calculate route distance: user -> store1 -> store2 -> ...
+    let totalDistance = 0;
+    if (planStores.length === 1) {
+      totalDistance = distToStore(planStores[0]);
+    } else {
+      totalDistance = distToStore(planStores[0]);
+      for (let i = 1; i < planStores.length; i++) {
+        totalDistance += distBetweenStores(planStores[i - 1], planStores[i]);
+      }
+    }
+
+    const baseTime = 10 * planStores.length; // 10 min per stop
+    const travelTime = totalDistance * 3; // ~3 min per mile
+    const totalTime = Math.max(baseTime, baseTime + travelTime);
+    const coverage = coveredCount / matchedItems.length;
+
+    // Filter out stores with no items assigned (can happen in combos)
+    const activeStores = storeData
+      .filter(sd => sd.items.length > 0)
+      .map(sd => ({ store: sd.store, items: sd.items, subtotal: sd.subtotal }));
+
+    return { stores: activeStores, totalCost, totalTime, totalDistance, score: 0, coverage };
+  }
+
+  // ── Generate all candidate plans ──
+
+  const candidatePlans: ReturnType<typeof buildPlan>[] = [];
+
+  // 1. Single-store plans (include any store with at least 1 item)
+  for (const store of storesWithCoords) {
+    const storeItemSet = itemsByStore.get(store.id);
+    if (!storeItemSet || storeItemSet.size === 0) continue;
+    candidatePlans.push(buildPlan([store]));
+  }
+
+  // 2. Multi-store plans via greedy set-cover
+  // Sort stores by coverage (descending) and take top 8 for combo generation
+  const storesByCoverage = [...storesWithCoords]
+    .map(store => ({ store, coverCount: itemsByStore.get(store.id)?.size || 0 }))
+    .filter(s => s.coverCount > 0)
+    .sort((a, b) => b.coverCount - a.coverCount)
+    .slice(0, 8);
+
+  const topStores = storesByCoverage.map(s => s.store);
+  const bestSingleCoverage = storesByCoverage.length > 0 ? storesByCoverage[0].coverCount / matchedItems.length : 0;
+
+  // Generate 2-store combos from top stores
+  for (let i = 0; i < topStores.length; i++) {
+    for (let j = i + 1; j < topStores.length; j++) {
+      const items1 = itemsByStore.get(topStores[i].id) || new Set<string>();
+      const items2 = itemsByStore.get(topStores[j].id) || new Set<string>();
+      const combined = new Set([...items1, ...items2]);
+      // Only include if the combo covers more than the best single store
+      if (combined.size > bestSingleCoverage * matchedItems.length) {
+        candidatePlans.push(buildPlan([topStores[i], topStores[j]]));
       }
     }
   }
 
-  // Combine and sort all plans
-  const allPlans = [...singleStorePlans, ...twoStorePlans];
-  console.log(`Trip planning: Final results - ${singleStorePlans.length} single-store plans, ${twoStorePlans.length} two-store plans, ${allPlans.length} total plans`);
-  const finalPlans = allPlans.sort((a, b) => b.score - a.score).slice(0, 6);
-  console.log(`Trip planning: Returning ${finalPlans.length} sorted plans`);
+  // Generate 3-store combos via greedy set-cover from top stores
+  if (matchedItems.length > 1 && topStores.length >= 3) {
+    // Start from each of the top 4 stores as seed, greedily add stores
+    const seeds = topStores.slice(0, Math.min(4, topStores.length));
+    const seen3 = new Set<string>();
+
+    for (const seed of seeds) {
+      const uncovered = new Set(itemIds);
+      const chosen: typeof storesWithCoords = [];
+      const remaining = topStores.filter(s => s.id !== seed.id);
+
+      // Add seed
+      chosen.push(seed);
+      const seedItems = itemsByStore.get(seed.id) || new Set<string>();
+      for (const id of seedItems) uncovered.delete(id);
+
+      // Greedily add up to 2 more stores
+      while (chosen.length < 3 && uncovered.size > 0 && remaining.length > 0) {
+        let bestIdx = -1;
+        let bestCover = 0;
+
+        for (let r = 0; r < remaining.length; r++) {
+          const rItems = itemsByStore.get(remaining[r].id) || new Set<string>();
+          let coverCount = 0;
+          for (const id of uncovered) {
+            if (rItems.has(id)) coverCount++;
+          }
+          if (coverCount > bestCover) {
+            bestCover = coverCount;
+            bestIdx = r;
+          }
+        }
+
+        if (bestIdx < 0 || bestCover === 0) break;
+
+        const nextStore = remaining.splice(bestIdx, 1)[0];
+        chosen.push(nextStore);
+        const nextItems = itemsByStore.get(nextStore.id) || new Set<string>();
+        for (const id of nextItems) uncovered.delete(id);
+      }
+
+      if (chosen.length >= 2) {
+        // Deduplicate by sorted store IDs
+        const key = chosen.map(s => s.id).sort().join(',');
+        if (!seen3.has(key)) {
+          seen3.add(key);
+          candidatePlans.push(buildPlan(chosen));
+        }
+      }
+    }
+  }
+
+  if (candidatePlans.length === 0) return [];
+
+  // ── Score all plans with min/max normalization ──
+
+  const costs = candidatePlans.map(p => p.totalCost);
+  const times = candidatePlans.map(p => p.totalTime);
+  const distances = candidatePlans.map(p => p.totalDistance);
+  const minCost = Math.min(...costs), maxCost = Math.max(...costs);
+  const minTime = Math.min(...times), maxTime = Math.max(...times);
+  const minDist = Math.min(...distances), maxDist = Math.max(...distances);
+
+  for (const plan of candidatePlans) {
+    // Normalize each dimension to 0-1 (0 = best, 1 = worst)
+    const normCost = maxCost > minCost ? (plan.totalCost - minCost) / (maxCost - minCost) : 0;
+    const normTime = maxTime > minTime ? (plan.totalTime - minTime) / (maxTime - minTime) : 0;
+    const normDist = maxDist > minDist ? (plan.totalDistance - minDist) / (maxDist - minDist) : 0;
+
+    // Weighted penalty (lower = better)
+    const penalty = weights.price * normCost + weights.time * normTime + weights.distance * normDist;
+
+    // Score: 0-100, multiplied by coverage so partial-coverage plans are penalized
+    plan.score = Math.round((1 - penalty) * plan.coverage * 100);
+  }
+
+  // ── Sort: coverage descending, then score descending ──
+  candidatePlans.sort((a, b) => {
+    if (b.coverage !== a.coverage) return b.coverage - a.coverage;
+    return b.score - a.score;
+  });
+
+  // Ensure at least one multi-store plan appears if it has better coverage than any single-store plan
+  const finalPlans = candidatePlans.slice(0, 6);
+  const hasMultiStore = finalPlans.some(p => p.stores.length > 1);
+  if (!hasMultiStore) {
+    const bestMulti = candidatePlans.find(p => p.stores.length > 1);
+    if (bestMulti && bestMulti.coverage > 0) {
+      finalPlans.pop();
+      finalPlans.push(bestMulti);
+      // Re-sort after insertion
+      finalPlans.sort((a, b) => {
+        if (b.coverage !== a.coverage) return b.coverage - a.coverage;
+        return b.score - a.score;
+      });
+    }
+  }
+
   return finalPlans;
 }
 
