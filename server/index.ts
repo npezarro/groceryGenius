@@ -6,6 +6,7 @@ import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { seedTopUp } from "./seed";
+import { startScheduler } from "./pipeline/scheduler";
 import "./auth"; // loads session type augmentation
 
 if (!process.env.SESSION_SECRET) {
@@ -102,8 +103,14 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
+  // Start the price pipeline scheduler in production
+  if (process.env.NODE_ENV === "production") {
+    startScheduler();
+  }
+
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen(port, "0.0.0.0", () => {
+  const host = process.env.HOST || "127.0.0.1";
+  server.listen(port, host, () => {
     log(`serving on port ${port}`);
   });
 })();
