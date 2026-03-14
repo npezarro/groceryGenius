@@ -337,7 +337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   router.post("/api/admin/seed", async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(403).json({ error: "Forbidden" });
+      return res.status(403).json({ error: "Forbidden: valid ADMIN_KEY required" });
     }
 
     // Accept mode via query (?mode=prices) or JSON body { mode, force }
@@ -398,11 +398,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { lat, lng, radius } = req.query;
       
       if (lat && lng && radius) {
-        const stores = await storage.getStoresWithinRadius(
-          parseFloat(lat as string),
-          parseFloat(lng as string),
-          parseFloat(radius as string)
-        );
+        const parsedLat = parseFloat(lat as string);
+        const parsedLng = parseFloat(lng as string);
+        const parsedRadius = parseFloat(radius as string);
+        if (isNaN(parsedLat) || isNaN(parsedLng) || isNaN(parsedRadius) || parsedRadius <= 0) {
+          return res.status(400).json({ error: "lat, lng must be valid numbers and radius must be positive" });
+        }
+        const stores = await storage.getStoresWithinRadius(parsedLat, parsedLng, parsedRadius);
         res.json(stores);
       } else {
         const stores = await storage.getAllStores();

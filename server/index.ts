@@ -1,7 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import helmet from "helmet";
-import memorystore from "memorystore";
+import pg from "pg";
+import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { seedTopUp } from "./seed";
@@ -14,9 +15,13 @@ if (!process.env.SESSION_SECRET) {
   );
 }
 
-const MemoryStore = memorystore(session);
+const PgSession = connectPgSimple(session);
 
 const app = express();
+
+// Trust first proxy (Apache reverse proxy terminates TLS)
+// Without this, Express sees HTTP and refuses to set Secure cookies
+app.set("trust proxy", 1);
 
 // Security headers
 app.use(helmet());
@@ -24,13 +29,16 @@ app.use(helmet());
 app.use(express.json({ limit: "10mb" })); // cap payload size (covers receipt image uploads)
 app.use(express.urlencoded({ extended: false }));
 
+// Session store — PostgreSQL for persistence across PM2 restarts
+const sessionPool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+
 // Session middleware
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    store: new MemoryStore({ checkPeriod: 86400000 }),
+    store: new PgSession({ pool: sessionPool, createTableIfMissing: true }),
     cookie: {
       secure: process.env.NODE_ENV === "production" && !process.env.INSECURE_COOKIES,
       httpOnly: true,
