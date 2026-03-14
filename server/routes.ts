@@ -6,6 +6,8 @@ import { db } from "./db";
 import { z } from "zod";
 import { seedTopUp, type SeedMode } from "./seed";
 import { hashPassword, verifyPassword, requireAuth, validateInput } from "./auth";
+import { getAdapters, getRecentRuns, isSourceStale } from "./pipeline/index";
+import { triggerManualRun, triggerSingleRun, getSchedulerStatus } from "./pipeline/scheduler";
 
 // Geocoding — Mapbox primary, Nominatim (OpenStreetMap) fallback
 async function geocodeWithNominatim(address: string): Promise<{ lat: number; lng: number } | null> {
@@ -987,6 +989,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Submit receipt prices error:", error);
       res.status(500).json({ error: "Failed to submit prices from receipt" });
+    }
+  });
+
+  // ── Pipeline / Data Ingestion API ──────────────────────
+
+  /** List all source adapters and their configuration status */
+  router.get("/api/pipeline/sources", async (_req, res) => {
+    try {
+      const sources = getAdapters();
+      const status = getSchedulerStatus();
+      const runs = await getRecentRuns(10);
+
+      // Check staleness for each source
+      const sourcesWithStatus = await Promise.all(
+        sources.map(async (s) => ({
+          ...s,
+          stale: await isSourceStale(s.sourceId),
+        })),
+      );
+
+      res.json({ sources: sourcesWithStatus, scheduler: status, recentRuns: runs });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch pipeline status" });
+    }
+  });
+
+  /** Get recent scrape run history */
+  router.get("/api/pipeline/runs", async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+      const runs = await getRecentRuns(limit);
+      res.json(runs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch run history" });
+    }
+  });
+
+  /** Trigger a pipeline run for all configured sources (admin only) */
+  router.post("/api/pipeline/run", async (req, res) => {
+    if (!isAuthorized(req)) {
+      return res.status(403).json({ error: "Forbidden: valid ADMIN_KEY required" });
+    }
+
+    try {
+      const { zipCode } = req.body || {};
+      const result = await triggerManualRun(zipCode || "94102");
+      res.json(result);
+    } catch (error) {
+      console.error("Pipeline run error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Pipeline run failed" });
+    }
+  });
+
+  /** Trigger a single source adapter (admin only) */
+  router.post("/api/pipeline/run/:sourceId", async (req, res) => {
+    if (!isAuthorized(req)) {
+      return res.status(403).json({ error: "Forbidden: valid ADMIN_KEY required" });
+    }
+
+    try {
+      const { zipCode } = req.body || {};
+      const result = await triggerSingleRun(req.params.sourceId, zipCode || "94102");
+      res.json(result);
+    } catch (error) {
+      console.error("Pipeline single-run error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Pipeline run failed" });
     }
   });
 
