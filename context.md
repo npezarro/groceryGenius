@@ -1,11 +1,11 @@
 # context.md
-Last Updated: 2026-03-17 | Replaced all any types with proper TypeScript types
+Last Updated: 2026-03-17 | Added semantic score labels to trip plan cards
 Current State: App is live at pezant.ca/grocerygenius (HTTP 200 verified). All `any` types eliminated across 12 files (server and client). Build passes via `npm run build:deploy`. All 9 tests pass.
 Open Work:
 - MapView component is still a placeholder (no real Mapbox GL JS integration)
 - JS bundle is ~851KB, could benefit from code splitting
 - Receipt OCR: currently manual entry only
-- Optional: replace raw score number with semantic labels ("Best Price", "Best Coverage")
+- Semantic score labels implemented: trip plan scores now show "Best Overall", "Best Price", "Best Coverage", "Quickest Trip" labels with color-coded icons; numeric score visible as secondary text and tooltip
 Environment Notes:
 - Deploy: pezant.ca/grocerygenius via Apache ProxyPass to localhost:8080
 - PM2 process: grocerygenius (id 4)
