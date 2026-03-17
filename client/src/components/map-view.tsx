@@ -1,11 +1,11 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Map, Plus, Minus } from "lucide-react";
-import { LocationCoordinates } from "@/lib/types";
+import { LocationCoordinates, NearbyStore } from "@/lib/types";
 
 interface MapViewProps {
   coordinates: LocationCoordinates | null;
-  stores: any[];
+  stores: NearbyStore[];
   radius: number;
 }
 

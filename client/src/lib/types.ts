@@ -40,6 +40,16 @@ export interface TripPlan {
   coverage: number;
 }
 
+export interface NearbyStore {
+  id: string;
+  name: string;
+  address: string;
+  lat: number | null;
+  lng: number | null;
+  hoursJson?: unknown;
+  createdAt?: string;
+}
+
 export interface DataStats {
   storeCount: number;
   itemCount: number;

@@ -1,7 +1,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertShoppingListSchema, prices } from "@shared/schema";
+import { insertShoppingListSchema, prices, type Price, type InsertStore, type InsertItem, type InsertPrice } from "@shared/schema";
 import { db } from "./db";
 import { z } from "zod";
 import { seedTopUp, type SeedMode } from "./seed";
@@ -82,7 +82,7 @@ function parseCSV(csvText: string): string[][] {
 
 // Trip planning algorithm
 // Helper function to calculate effective price considering promotions and member pricing
-function calculateEffectivePrice(price: any, userHasMembership: boolean = false): number {
+function calculateEffectivePrice(price: Price, userHasMembership: boolean = false): number {
   const now = new Date();
   
   // Start with original price or current price as fallback
@@ -381,7 +381,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  function isAuthorized(req: any) {
+  function isAuthorized(req: Request) {
     const adminKey = process.env.ADMIN_KEY;
     const header = req.headers["x-admin-key"];
     return Boolean(adminKey) && header === adminKey;
@@ -605,7 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dataRows = rows.slice(1);
 
       const stores = dataRows.map(row => {
-        const store: any = {};
+        const store: Partial<InsertStore> = {};
         headers.forEach((header, index) => {
           const value = row[index]?.replace(/^"|"$/g, ''); // Remove quotes
           switch (header.toLowerCase()) {
@@ -636,7 +636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return store;
       }).filter(store => store.name && store.address);
 
-      await storage.importStores(stores);
+      await storage.importStores(stores as InsertStore[]);
       res.json({ imported: stores.length, message: "Stores imported successfully" });
     } catch (error) {
       console.error("Store import error:", error);
@@ -656,7 +656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dataRows = rows.slice(1);
 
       const items = dataRows.map(row => {
-        const item: any = {};
+        const item: Partial<InsertItem> = {};
         headers.forEach((header, index) => {
           const value = row[index]?.replace(/^"|"$/g, '');
           switch (header.toLowerCase()) {
@@ -680,7 +680,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return item;
       }).filter(item => item.name);
 
-      await storage.importItems(items);
+      await storage.importItems(items as InsertItem[]);
       res.json({ imported: items.length, message: "Items imported successfully" });
     } catch (error) {
       console.error("Item import error:", error);
@@ -700,7 +700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dataRows = rows.slice(1);
 
       const prices = dataRows.map(row => {
-        const price: any = {};
+        const price: Partial<InsertPrice> = {};
         headers.forEach((header, index) => {
           const value = row[index]?.replace(/^"|"$/g, '');
           switch (header.toLowerCase()) {
@@ -730,7 +730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return price;
       }).filter(price => price.itemId && price.storeId && price.price);
 
-      await storage.importPrices(prices);
+      await storage.importPrices(prices as InsertPrice[]);
       res.json({ imported: prices.length, message: "Prices imported successfully" });
     } catch (error) {
       console.error("Price import error:", error);

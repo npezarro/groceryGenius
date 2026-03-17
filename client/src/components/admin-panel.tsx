@@ -110,7 +110,7 @@ export default function AdminPanel() {
     },
   });
 
-  const handleFileImport = async (file: File, mutation: any) => {
+  const handleFileImport = async (file: File, mutation: { mutate: (data: string) => void }) => {
     if (!file) return;
     
     const reader = new FileReader();

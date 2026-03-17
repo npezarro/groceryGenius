@@ -9,7 +9,7 @@ import AdminPanel from "@/components/admin-panel";
 import FavoriteStores from "@/components/favorite-stores";
 import SubmitPrice from "@/components/submit-price";
 import ReceiptUpload from "@/components/receipt-upload";
-import { ShoppingListItem, LocationCoordinates, TripWeights, TripPlan } from "@/lib/types";
+import { ShoppingListItem, LocationCoordinates, TripWeights, TripPlan, type NearbyStore } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -34,7 +34,7 @@ export default function Home() {
   });
   const [userHasMembership, setUserHasMembership] = useState(false);
   const [tripPlans, setTripPlans] = useState<TripPlan[]>([]);
-  const [stores, setStores] = useState<any[]>([]);
+  const [stores, setStores] = useState<NearbyStore[]>([]);
 
   // Fetch stores based on location and radius
   const { data: nearbyStores } = useQuery({

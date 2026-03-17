@@ -13,7 +13,7 @@ async function request(
 ) {
   const { createServer } = await import("http");
 
-  return new Promise<{ status: number; body: any; headers: Record<string, string> }>((resolve, reject) => {
+  return new Promise<{ status: number; body: Record<string, unknown>; headers: Record<string, string> }>((resolve, reject) => {
     const server = createServer(app);
     server.listen(0, "127.0.0.1", () => {
       const addr = server.address() as import("net").AddressInfo;
@@ -28,11 +28,11 @@ async function request(
       fetch(url, { method, body: payload, headers: reqHeaders })
         .then(async (res) => {
           const text = await res.text();
-          let parsed: any;
+          let parsed: Record<string, unknown>;
           try {
             parsed = JSON.parse(text);
           } catch {
-            parsed = text;
+            parsed = { _raw: text };
           }
           resolve({
             status: res.status,
@@ -61,7 +61,7 @@ describe("Admin seed endpoint", () => {
     app.use(express.json());
 
     // Re-create the isAuthorized + seed route exactly as in routes.ts
-    function isAuthorized(req: any) {
+    function isAuthorized(req: express.Request) {
       const adminKey = process.env.ADMIN_KEY;
       const header = req.headers["x-admin-key"];
       return Boolean(adminKey) && header === adminKey;
