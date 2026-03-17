@@ -1,9 +1,9 @@
 # context.md
-Last Updated: 2026-03-13 | Fixed blank page outage, added build guards and deploy script
-Current State: App is live at pezant.ca/grocerygenius. Fixed second blank-page outage caused by missing BASE_PATH in build. Added three layers of prevention: (1) vite.config.ts guard that throws on production builds without BASE_PATH, (2) verify-build script that checks asset paths post-build, (3) deploy.sh script that automates build+restart+verify. Build passes via `npm run build:deploy`. Bare `npm run build` now correctly fails for production builds.
+Last Updated: 2026-03-17 | Merged agent/lint-fixes, deployed, cleaned up stale branches
+Current State: App is live at pezant.ca/grocerygenius (HTTP 200 verified). All work from agent/lint-fixes (ESLint 9, blank page fixes, multi-store trip planning, BASE_PATH guard) merged via PR #18. Build passes via `npm run build:deploy`. PM2 process restarted and serving cleanly.
 Open Work:
 - MapView component is still a placeholder (no real Mapbox GL JS integration)
-- JS bundle is ~743KB, could benefit from code splitting
+- JS bundle is ~851KB, could benefit from code splitting
 - Receipt OCR: currently manual entry only
 - 21 `any` types to progressively replace with proper types
 - Optional: replace raw score number with semantic labels ("Best Price", "Best Coverage")
@@ -18,4 +18,4 @@ Environment Notes:
 - Deploy: `./deploy.sh` (builds, restarts PM2, verifies live site)
 - Start: `npm run start` (NODE_ENV=production node dist/index.js)
 - Tests: `npm test` (vitest)
-Active Branch: agent/lint-fixes
+Active Branch: main
