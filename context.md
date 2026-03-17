@@ -1,11 +1,10 @@
 # context.md
-Last Updated: 2026-03-17 | Merged agent/lint-fixes, deployed, cleaned up stale branches
-Current State: App is live at pezant.ca/grocerygenius (HTTP 200 verified). All work from agent/lint-fixes (ESLint 9, blank page fixes, multi-store trip planning, BASE_PATH guard) merged via PR #18. Build passes via `npm run build:deploy`. PM2 process restarted and serving cleanly.
+Last Updated: 2026-03-17 | Replaced all any types with proper TypeScript types
+Current State: App is live at pezant.ca/grocerygenius (HTTP 200 verified). All `any` types eliminated across 12 files (server and client). Build passes via `npm run build:deploy`. All 9 tests pass.
 Open Work:
 - MapView component is still a placeholder (no real Mapbox GL JS integration)
 - JS bundle is ~851KB, could benefit from code splitting
 - Receipt OCR: currently manual entry only
-- 21 `any` types to progressively replace with proper types
 - Optional: replace raw score number with semantic labels ("Best Price", "Best Coverage")
 Environment Notes:
 - Deploy: pezant.ca/grocerygenius via Apache ProxyPass to localhost:8080

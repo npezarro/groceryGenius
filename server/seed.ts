@@ -1,7 +1,7 @@
 // server/seed.ts
 import { storage } from "./storage";
-import type { InsertPrice } from "@shared/schema";
-import { mockStores, mockItems, mockPricesByStore } from "./mock-data";
+import type { InsertPrice, Store, Item } from "@shared/schema";
+import { mockStores, mockItems, mockPricesByStore, type MockPriceRow } from "./mock-data";
 
 export type SeedMode = "stores" | "items" | "prices" | "all";
 type Counts = { storeCount: number; itemCount: number; priceCount: number };
@@ -22,11 +22,11 @@ async function getCounts(): Promise<Counts> {
 // Helpers to fetch existing by name — adapt to your storage API
 async function mapStoreIdsByName(): Promise<Record<string, string>> {
   const all = await storage.getAllStores();
-  return Object.fromEntries(all.map((s: any) => [s.name, s.id]));
+  return Object.fromEntries(all.map((s: Store) => [s.name, s.id]));
 }
 async function mapItemIdsByName(): Promise<Record<string, string>> {
   const all = await storage.getAllItems();
-  return Object.fromEntries(all.map((i: any) => [i.name, i.id]));
+  return Object.fromEntries(all.map((i: Item) => [i.name, i.id]));
 }
 
 async function ensureStores(): Promise<number> {
@@ -61,7 +61,7 @@ async function ensurePrices(force = false): Promise<{ prices: number; storeItems
   const itemIdByName = await mapItemIdsByName();
 
   // Collect all potential store/item combinations from mock data
-  const potentialPairs: Array<{ storeId: string; itemId: string; data: any }> = [];
+  const potentialPairs: Array<{ storeId: string; itemId: string; data: MockPriceRow }> = [];
   for (const p of mockPricesByStore) {
     const storeId = storeIdByName[p.storeName];
     const itemId  = itemIdByName[p.itemName];

@@ -99,7 +99,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
 
   const getItemId = (itemName: string) => {
     if (!dbItems) return null;
-    const dbItem = dbItems.find((item: any) => 
+    const dbItem = dbItems.find((item: { id: string; name: string }) =>
       item.name.toLowerCase() === itemName.toLowerCase() ||
       item.name.toLowerCase().includes(itemName.toLowerCase()) ||
       itemName.toLowerCase().includes(item.name.toLowerCase())
