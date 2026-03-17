@@ -13,6 +13,7 @@
 
 | Date | Type | Description |
 |------|------|-------------|
+| 2026-03-17 | refactor | Replace all 23 `any` types with proper TypeScript types across 12 files; adds NearbyStore shared type, PromotionalPrice interface, typed CSV import partials, and inferred Drizzle return types |
 | 2026-03-17 | deploy | Deployed latest main to production (PM2 restart, HTTP 200 verified); cleaned up 4 stale branches (agent/lint-fixes, claude/fix-blank-page-base-path, claude/fix-code-gcp-deploy-q5ZMg, claude/price-pipeline) |
 | 2026-03-13 | fix | Fixed second blank-page outage (missing BASE_PATH); added build-time guard in vite.config.ts, verify-build script, and deploy.sh to prevent recurrence |
 | 2026-03-12 | feat | Multi-store trip planning: greedy set-cover algorithm for 2-3 store combos, min/max scoring normalization, coverage-weighted ranking, color-coded coverage badge in card header |

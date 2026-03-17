@@ -83,20 +83,20 @@ export function parseJsonLdFromHtml(html: string): RawProduct[] {
 }
 
 /** Flatten nested JSON-LD (handles @graph arrays, nested types) */
-function flattenJsonLd(json: any): any[] {
+function flattenJsonLd(json: unknown): Record<string, unknown>[] {
   if (Array.isArray(json)) {
     return json.flatMap(flattenJsonLd);
   }
-  if (json?.["@graph"]) {
-    return flattenJsonLd(json["@graph"]);
+  if (json && typeof json === "object" && "@graph" in json) {
+    return flattenJsonLd((json as Record<string, unknown>)["@graph"]);
   }
-  return [json];
+  return [json as Record<string, unknown>];
 }
 
 /** Check if a @type is a Product variant */
-function isProductType(type: string | string[] | undefined): boolean {
+function isProductType(type: unknown): boolean {
   if (!type) return false;
-  const types = Array.isArray(type) ? type : [type];
+  const types = Array.isArray(type) ? type : [type as string];
   return types.some(t =>
     t === "Product" || t === "schema:Product" || t === "https://schema.org/Product",
   );

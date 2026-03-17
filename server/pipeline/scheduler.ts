@@ -12,6 +12,7 @@
 
 import cron from "node-cron";
 import { runAllAdapters, getAdapter, runAdapter } from "./index";
+import type { PipelineResult } from "./types";
 
 let scheduledTasks: cron.ScheduledTask[] = [];
 let isRunning = false;
@@ -60,7 +61,7 @@ export function stopScheduler(): void {
 }
 
 /** Trigger an immediate run of all adapters (for manual/API use) */
-export async function triggerManualRun(zipCode: string = "94102"): Promise<any> {
+export async function triggerManualRun(zipCode: string = "94102"): Promise<{ error: string } | { ok: true; results: PipelineResult[] }> {
   if (isRunning) {
     return { error: "A pipeline run is already in progress" };
   }
@@ -74,7 +75,7 @@ export async function triggerManualRun(zipCode: string = "94102"): Promise<any> 
 }
 
 /** Trigger a single adapter run */
-export async function triggerSingleRun(sourceId: string, zipCode: string = "94102"): Promise<any> {
+export async function triggerSingleRun(sourceId: string, zipCode: string = "94102"): Promise<{ error: string } | PipelineResult> {
   const adapter = getAdapter(sourceId);
   if (!adapter) {
     return { error: `Unknown source: ${sourceId}` };
