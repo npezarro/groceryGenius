@@ -1,8 +1,27 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Route, ExternalLink, Printer, Clock, MapPin, Star, Search, Navigation } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Route, ExternalLink, Printer, Clock, MapPin, Star, Search, Navigation, DollarSign, ShoppingCart, Zap } from "lucide-react";
 import { TripPlan, LocationCoordinates } from "@/lib/types";
+
+function getSemanticLabel(plan: TripPlan, allPlans: TripPlan[]): { label: string; color: string; icon: typeof Star } {
+  if (allPlans.length <= 1) return { label: "Best Overall", color: "text-yellow-600", icon: Star };
+
+  const bestScore = Math.max(...allPlans.map(p => p.score));
+  const lowestCost = Math.min(...allPlans.map(p => p.totalCost));
+  const bestCoverage = Math.max(...allPlans.map(p => p.coverage));
+  const shortestTime = Math.min(...allPlans.map(p => p.totalTime));
+
+  if (plan.score === bestScore) return { label: "Best Overall", color: "text-yellow-600", icon: Star };
+  if (plan.totalCost === lowestCost) return { label: "Best Price", color: "text-green-600", icon: DollarSign };
+  if (plan.coverage === bestCoverage && plan.coverage > 0) return { label: "Best Coverage", color: "text-blue-600", icon: ShoppingCart };
+  if (plan.totalTime === shortestTime) return { label: "Quickest Trip", color: "text-purple-600", icon: Zap };
+
+  if (plan.score >= 80) return { label: "Great Option", color: "text-yellow-600", icon: Star };
+  if (plan.score >= 50) return { label: "Good Option", color: "text-muted-foreground", icon: Star };
+  return { label: "Alternative", color: "text-muted-foreground", icon: Star };
+}
 
 interface TripPlansProps {
   tripPlans: TripPlan[];
@@ -139,11 +158,30 @@ export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoor
                     <div className="text-xs text-muted-foreground">Distance</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-sm font-medium flex items-center justify-center">
-                      <Star size={14} className="mr-1" />
-                      {Math.round(plan.score)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Score</div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="cursor-default">
+                            <div className={`text-sm font-medium flex items-center justify-center ${getSemanticLabel(plan, tripPlans).color}`}>
+                              {(() => {
+                                const { label, icon: Icon } = getSemanticLabel(plan, tripPlans);
+                                return (
+                                  <>
+                                    <Icon size={14} className="mr-1" />
+                                    {label}
+                                  </>
+                                );
+                              })()}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Score: {Math.round(plan.score)}/100</div>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Overall score: {Math.round(plan.score)} out of 100</p>
+                          <p className="text-xs text-muted-foreground">Based on price, travel time, and distance</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </div>
 
