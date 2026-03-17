@@ -1,11 +1,10 @@
 # context.md
-Last Updated: 2026-03-17 | Added semantic score labels to trip plan cards
-Current State: App is live at pezant.ca/grocerygenius (HTTP 200 verified). All `any` types eliminated across 12 files (server and client). Build passes via `npm run build:deploy`. All 9 tests pass.
+Last Updated: 2026-03-17 | Code splitting reduces largest JS chunk from 854KB to 376KB
+Current State: App is live at pezant.ca/grocerygenius (HTTP 200 verified). Build passes via `npm run build:deploy`. All 9 tests pass. Bundle is now split into 14 chunks via React.lazy routes, component-level Suspense, and Vite manualChunks. Largest chunk is vendor-charts (recharts) at 376KB; initial app shell + React is ~181KB.
 Open Work:
 - MapView component is still a placeholder (no real Mapbox GL JS integration)
-- JS bundle is ~851KB, could benefit from code splitting
 - Receipt OCR: currently manual entry only
-- Semantic score labels implemented: trip plan scores now show "Best Overall", "Best Price", "Best Coverage", "Quickest Trip" labels with color-coded icons; numeric score visible as secondary text and tooltip
+- vendor-charts (recharts at 376KB) is the largest remaining chunk; could be lazy-loaded if PriceSparkline is deferred
 Environment Notes:
 - Deploy: pezant.ca/grocerygenius via Apache ProxyPass to localhost:8080
 - PM2 process: grocerygenius (id 4)
@@ -17,4 +16,4 @@ Environment Notes:
 - Deploy: `./deploy.sh` (builds, restarts PM2, verifies live site)
 - Start: `npm run start` (NODE_ENV=production node dist/index.js)
 - Tests: `npm test` (vitest)
-Active Branch: main
+Active Branch: claude/code-splitting
