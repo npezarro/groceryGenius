@@ -1,11 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import ShoppingList from "@/components/shopping-list";
 import LocationPreferences from "@/components/location-preferences";
-import MapView from "@/components/map-view";
-import TripPlans from "@/components/trip-plans";
-import AdminPanel from "@/components/admin-panel";
 import FavoriteStores from "@/components/favorite-stores";
 import SubmitPrice from "@/components/submit-price";
 import ReceiptUpload from "@/components/receipt-upload";
@@ -16,6 +12,19 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { apiRequest } from "@/lib/queryClient";
 import { apiUrl } from "@/lib/api";
+
+const ShoppingList = lazy(() => import("@/components/shopping-list"));
+const MapView = lazy(() => import("@/components/map-view"));
+const TripPlans = lazy(() => import("@/components/trip-plans"));
+const AdminPanel = lazy(() => import("@/components/admin-panel"));
+
+function SectionLoading() {
+  return (
+    <div className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm min-h-[200px] flex items-center justify-center">
+      <span className="text-muted-foreground text-sm">Loading...</span>
+    </div>
+  );
+}
 
 export default function Home() {
   const { toast } = useToast();
@@ -236,11 +245,13 @@ export default function Home() {
 
             <TabsContent value="shopping" className="min-h-[calc(100vh-8rem)]">
               <div className="space-y-6 pt-2">
-                <ShoppingList
-                  items={shoppingItems}
-                  onItemsChange={setShoppingItems}
-                  userHasMembership={userHasMembership}
-                />
+                <Suspense fallback={<SectionLoading />}>
+                  <ShoppingList
+                    items={shoppingItems}
+                    onItemsChange={setShoppingItems}
+                    userHasMembership={userHasMembership}
+                  />
+                </Suspense>
 
                 <LocationPreferences
                   location={location}
@@ -265,24 +276,28 @@ export default function Home() {
 
             <TabsContent value="map" className="min-h-[calc(100vh-8rem)]">
               <div className="space-y-6 pt-2">
-                <MapView
-                  coordinates={coordinates}
-                  stores={stores}
-                  radius={radius}
-                />
+                <Suspense fallback={<SectionLoading />}>
+                  <MapView
+                    coordinates={coordinates}
+                    stores={stores}
+                    radius={radius}
+                  />
+                </Suspense>
               </div>
             </TabsContent>
 
             <TabsContent value="trips" className="min-h-[calc(100vh-8rem)]">
               <div className="space-y-6 pt-2">
-                <TripPlans
-                  tripPlans={tripPlans}
-                  isLoading={generatePlansMutation.isPending}
-                  onSelectPlan={handleSelectPlan}
-                  userCoordinates={coordinates}
-                />
+                <Suspense fallback={<SectionLoading />}>
+                  <TripPlans
+                    tripPlans={tripPlans}
+                    isLoading={generatePlansMutation.isPending}
+                    onSelectPlan={handleSelectPlan}
+                    userCoordinates={coordinates}
+                  />
 
-                <AdminPanel />
+                  <AdminPanel />
+                </Suspense>
               </div>
             </TabsContent>
           </Tabs>
@@ -291,11 +306,13 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Sidebar */}
             <div className="lg:col-span-1 space-y-6">
-              <ShoppingList
-                items={shoppingItems}
-                onItemsChange={setShoppingItems}
-                userHasMembership={userHasMembership}
-              />
+              <Suspense fallback={<SectionLoading />}>
+                <ShoppingList
+                  items={shoppingItems}
+                  onItemsChange={setShoppingItems}
+                  userHasMembership={userHasMembership}
+                />
+              </Suspense>
 
               <LocationPreferences
                 location={location}
@@ -319,20 +336,24 @@ export default function Home() {
 
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-6">
-              <MapView
-                coordinates={coordinates}
-                stores={stores}
-                radius={radius}
-              />
+              <Suspense fallback={<SectionLoading />}>
+                <MapView
+                  coordinates={coordinates}
+                  stores={stores}
+                  radius={radius}
+                />
+              </Suspense>
 
-              <TripPlans
-                tripPlans={tripPlans}
-                isLoading={generatePlansMutation.isPending}
-                onSelectPlan={handleSelectPlan}
-                userCoordinates={coordinates}
-              />
+              <Suspense fallback={<SectionLoading />}>
+                <TripPlans
+                  tripPlans={tripPlans}
+                  isLoading={generatePlansMutation.isPending}
+                  onSelectPlan={handleSelectPlan}
+                  userCoordinates={coordinates}
+                />
 
-              <AdminPanel />
+                <AdminPanel />
+              </Suspense>
             </div>
           </div>
         )}
