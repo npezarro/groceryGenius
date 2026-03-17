@@ -87,7 +87,12 @@ export class BLSAdapter implements SourceAdapter {
 
       try {
         const currentYear = new Date().getFullYear();
-        const body: any = {
+        const body: {
+          seriesid: string[];
+          startyear: string;
+          endyear: string;
+          registrationkey?: string;
+        } = {
           seriesid: seriesIds,
           startyear: String(currentYear - 1),
           endyear: String(currentYear),

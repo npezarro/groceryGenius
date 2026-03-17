@@ -75,7 +75,7 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: keyof ParsedItem, value: string | number) => {
     const updated = [...items];
-    (updated[i] as any)[field] = value;
+    updated[i] = { ...updated[i], [field]: value };
     setItems(updated);
   };
 

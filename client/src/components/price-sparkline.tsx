@@ -22,6 +22,17 @@ interface PricePoint {
   capturedAt: string;
 }
 
+interface PromotionalPrice {
+  itemId: string;
+  storeId: string;
+  price: string;
+  isPromotion: boolean;
+  originalPrice: string | null;
+  promotionText: string | null;
+  memberPrice: string | null;
+  loyaltyRequired: boolean | null;
+}
+
 export default function PriceSparkline({ 
   itemId, 
   itemName: _itemName,
@@ -61,7 +72,7 @@ export default function PriceSparkline({
     enabled: !!itemId
   });
 
-  const sparklineData: PricePoint[] = priceHistory?.map((price: any) => ({
+  const sparklineData: PricePoint[] = priceHistory?.map((price: { price: string; capturedAt: string }) => ({
     date: new Date(price.capturedAt).toLocaleDateString(),
     price: parseFloat(price.price),
     capturedAt: price.capturedAt
@@ -86,7 +97,7 @@ export default function PriceSparkline({
   const hasData = sparklineData.length > 0;
   
   // Get the current promotional price for this item/store combination
-  const currentPromotion = promotionalPrices?.find((promo: any) => 
+  const currentPromotion = promotionalPrices?.find((promo: PromotionalPrice) =>
     promo.itemId === itemId && (!storeId || promo.storeId === storeId)
   );
 

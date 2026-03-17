@@ -157,7 +157,7 @@ export class DatabaseStorage {
     return await db.select().from(prices).where(condition).orderBy(prices.capturedAt);
   }
 
-  async getPriceHistoryForMultipleItems(itemIds: string[], daysBack: number = 30): Promise<any[]> {
+  async getPriceHistoryForMultipleItems(itemIds: string[], daysBack: number = 30) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysBack);
     return await db.select({
