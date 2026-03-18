@@ -1,10 +1,10 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import LocationPreferences from "@/components/location-preferences";
-import FavoriteStores from "@/components/favorite-stores";
-import SubmitPrice from "@/components/submit-price";
-import ReceiptUpload from "@/components/receipt-upload";
+const LocationPreferences = lazy(() => import("@/components/location-preferences"));
+const FavoriteStores = lazy(() => import("@/components/favorite-stores"));
+const SubmitPrice = lazy(() => import("@/components/submit-price"));
+const ReceiptUpload = lazy(() => import("@/components/receipt-upload"));
 import { ShoppingListItem, LocationCoordinates, TripWeights, TripPlan, type NearbyStore } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -25,6 +25,45 @@ function SectionLoading() {
   return (
     <div className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm min-h-[200px] flex items-center justify-center">
       <span className="text-muted-foreground text-sm">Loading...</span>
+    </div>
+  );
+}
+
+function LocationPreferencesSkeleton() {
+  return (
+    <div className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm min-h-[320px] animate-pulse">
+      <div className="h-6 w-48 bg-muted rounded mb-4" />
+      <div className="space-y-3">
+        <div className="h-10 bg-muted rounded" />
+        <div className="h-10 bg-muted rounded" />
+        <div className="h-10 bg-muted rounded w-2/3" />
+        <div className="h-10 bg-muted rounded mt-4" />
+      </div>
+    </div>
+  );
+}
+
+function FavoriteStoresSkeleton() {
+  return (
+    <div className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm min-h-[120px] animate-pulse">
+      <div className="h-6 w-36 bg-muted rounded mb-4" />
+      <div className="flex gap-2">
+        <div className="h-8 w-24 bg-muted rounded-full" />
+        <div className="h-8 w-28 bg-muted rounded-full" />
+        <div className="h-8 w-20 bg-muted rounded-full" />
+      </div>
+    </div>
+  );
+}
+
+function CompactSectionSkeleton() {
+  return (
+    <div className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm min-h-[160px] animate-pulse">
+      <div className="h-6 w-40 bg-muted rounded mb-4" />
+      <div className="space-y-3">
+        <div className="h-10 bg-muted rounded" />
+        <div className="h-10 bg-muted rounded w-1/2" />
+      </div>
     </div>
   );
 }
@@ -268,24 +307,32 @@ export default function Home() {
                   />
                 </Suspense>
 
-                <LocationPreferences
-                  location={location}
-                  coordinates={coordinates}
-                  radius={radius}
-                  weights={weights}
-                  userHasMembership={userHasMembership}
-                  onLocationChange={setLocation}
-                  onCoordinatesChange={setCoordinates}
-                  onRadiusChange={setRadius}
-                  onWeightsChange={setWeights}
-                  onMembershipChange={setUserHasMembership}
-                  onGeneratePlans={handleGeneratePlans}
-                  isGenerating={generatePlansMutation.isPending}
-                />
+                <Suspense fallback={<LocationPreferencesSkeleton />}>
+                  <LocationPreferences
+                    location={location}
+                    coordinates={coordinates}
+                    radius={radius}
+                    weights={weights}
+                    userHasMembership={userHasMembership}
+                    onLocationChange={setLocation}
+                    onCoordinatesChange={setCoordinates}
+                    onRadiusChange={setRadius}
+                    onWeightsChange={setWeights}
+                    onMembershipChange={setUserHasMembership}
+                    onGeneratePlans={handleGeneratePlans}
+                    isGenerating={generatePlansMutation.isPending}
+                  />
+                </Suspense>
 
-                <FavoriteStores stores={stores} />
-                <SubmitPrice stores={stores} />
-                <ReceiptUpload stores={stores} />
+                <Suspense fallback={<FavoriteStoresSkeleton />}>
+                  <FavoriteStores stores={stores} />
+                </Suspense>
+                <Suspense fallback={<CompactSectionSkeleton />}>
+                  <SubmitPrice stores={stores} />
+                </Suspense>
+                <Suspense fallback={<CompactSectionSkeleton />}>
+                  <ReceiptUpload stores={stores} />
+                </Suspense>
               </div>
             </TabsContent>
 
@@ -331,24 +378,32 @@ export default function Home() {
                 />
               </Suspense>
 
-              <LocationPreferences
-                location={location}
-                coordinates={coordinates}
-                radius={radius}
-                weights={weights}
-                userHasMembership={userHasMembership}
-                onLocationChange={setLocation}
-                onCoordinatesChange={setCoordinates}
-                onRadiusChange={setRadius}
-                onWeightsChange={setWeights}
-                onMembershipChange={setUserHasMembership}
-                onGeneratePlans={handleGeneratePlans}
-                isGenerating={generatePlansMutation.isPending}
-              />
+              <Suspense fallback={<LocationPreferencesSkeleton />}>
+                <LocationPreferences
+                  location={location}
+                  coordinates={coordinates}
+                  radius={radius}
+                  weights={weights}
+                  userHasMembership={userHasMembership}
+                  onLocationChange={setLocation}
+                  onCoordinatesChange={setCoordinates}
+                  onRadiusChange={setRadius}
+                  onWeightsChange={setWeights}
+                  onMembershipChange={setUserHasMembership}
+                  onGeneratePlans={handleGeneratePlans}
+                  isGenerating={generatePlansMutation.isPending}
+                />
+              </Suspense>
 
-              <FavoriteStores stores={stores} />
-              <SubmitPrice stores={stores} />
-              <ReceiptUpload stores={stores} />
+              <Suspense fallback={<FavoriteStoresSkeleton />}>
+                <FavoriteStores stores={stores} />
+              </Suspense>
+              <Suspense fallback={<CompactSectionSkeleton />}>
+                <SubmitPrice stores={stores} />
+              </Suspense>
+              <Suspense fallback={<CompactSectionSkeleton />}>
+                <ReceiptUpload stores={stores} />
+              </Suspense>
             </div>
 
             {/* Main Content */}

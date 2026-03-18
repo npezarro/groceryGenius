@@ -6,11 +6,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { BASE_PATH } from "@/lib/api";
-import LoadTestDataBar from "./components/LoadTestDataBar";
 
 const Home = lazy(() => import("@/pages/home"));
 const AuthPage = lazy(() => import("@/pages/auth"));
 const NotFound = lazy(() => import("@/pages/not-found"));
+const LoadTestDataBar = lazy(() => import("./components/LoadTestDataBar"));
 
 function RouteLoading() {
   return (
@@ -40,7 +40,9 @@ function App() {
           <WouterRouter base={BASE_PATH || undefined}>
             <Toaster />
             <AppRoutes />
-            <LoadTestDataBar />
+            <Suspense fallback={null}>
+              <LoadTestDataBar />
+            </Suspense>
           </WouterRouter>
         </TooltipProvider>
       </AuthProvider>
