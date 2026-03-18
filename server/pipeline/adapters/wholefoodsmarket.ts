@@ -140,12 +140,6 @@ export class WholeFoodsAdapter implements SourceAdapter {
   }
 }
 
-function parsePrice(text: string): number | null {
-  if (!text) return null;
-  const match = text.match(/\$?([\d.]+)/);
-  return match ? parseFloat(match[1]) : null;
-}
-
 function extractUnit(name: string): string | undefined {
   const match = name.match(/(\d+(?:\.\d+)?)\s*(oz|fl\s*oz|lb|lbs|gal|gallon|qt|pt|ml|l|kg|g|ct|count|pack|pk)\b/i);
   return match ? match[2].toLowerCase() : undefined;
