@@ -13,7 +13,7 @@ import { WholeFoodsAdapter } from "./adapters/wholefoodsmarket";
 import { BLSAdapter } from "./adapters/bls";
 import { db } from "../db";
 import { scrapeRuns } from "@shared/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { storage } from "../storage";
 
 /** All registered adapters */

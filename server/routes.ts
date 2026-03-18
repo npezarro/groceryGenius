@@ -1060,7 +1060,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       res.json({ sources: sourcesWithStatus, scheduler: status, recentRuns: runs });
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: "Failed to fetch pipeline status" });
     }
   });
@@ -1071,7 +1071,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
       const runs = await getRecentRuns(limit);
       res.json(runs);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: "Failed to fetch run history" });
     }
   });
