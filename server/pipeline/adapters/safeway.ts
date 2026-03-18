@@ -51,7 +51,7 @@ export class SafewayAdapter implements SourceAdapter {
     return allProducts;
   }
 
-  private async searchProducts(query: string, storeId: string, zipCode: string): Promise<RawProduct[]> {
+  private async searchProducts(query: string, _storeId: string, _zipCode: string): Promise<RawProduct[]> {
     const url = `${BASE_URL}/shop/search-results.html?q=${encodeURIComponent(query)}`;
 
     const response = await fetch(url, {
