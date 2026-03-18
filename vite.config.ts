@@ -5,12 +5,6 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const basePath = process.env.BASE_PATH || "";
 
-if (process.env.NODE_ENV === "production" && !process.env.BASE_PATH) {
-  throw new Error(
-    "BASE_PATH must be set for production builds. Use: npm run build:deploy",
-  );
-}
-
 export default defineConfig({
   plugins: [
     react(),

@@ -1,6 +1,6 @@
 # context.md
-Last Updated: 2026-03-17 | Code splitting reduces largest JS chunk from 854KB to 376KB
-Current State: App is live at pezant.ca/grocerygenius (HTTP 200 verified). Build passes via `npm run build:deploy`. All 9 tests pass. Bundle is now split into 14 chunks via React.lazy routes, component-level Suspense, and Vite manualChunks. Largest chunk is vendor-charts (recharts) at 376KB; initial app shell + React is ~181KB.
+Last Updated: 2026-03-18 | Fix broken `npm run build` by removing overly strict BASE_PATH guard
+Current State: App is live at pezant.ca/grocerygenius. Both `npm run build` and `npm run build:deploy` pass. All 9 tests pass. The `verify-build` script in `build:deploy` remains the deployment guardrail for correct asset paths. Bundle is split into 14 chunks via React.lazy routes, component-level Suspense, and Vite manualChunks.
 Open Work:
 - MapView component is still a placeholder (no real Mapbox GL JS integration)
 - Receipt OCR: currently manual entry only
@@ -16,4 +16,4 @@ Environment Notes:
 - Deploy: `./deploy.sh` (builds, restarts PM2, verifies live site)
 - Start: `npm run start` (NODE_ENV=production node dist/index.js)
 - Tests: `npm test` (vitest)
-Active Branch: claude/code-splitting
+Active Branch: claude/fix-build-2026-03-18

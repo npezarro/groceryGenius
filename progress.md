@@ -13,6 +13,7 @@
 
 | Date | Type | Description |
 |------|------|-------------|
+| 2026-03-18 | fix | Remove overly strict BASE_PATH production guard from vite.config.ts that broke `npm run build`; `build:deploy` with verify-build remains the deployment safety net |
 | 2026-03-17 | refactor | Code splitting: React.lazy for 3 routes + 4 components, Suspense boundaries, Vite manualChunks for 5 vendor groups; single 854KB chunk split into 14 chunks, largest 376KB, initial shell ~181KB |
 | 2026-03-17 | feat | Replace raw numeric scores in trip plan cards with semantic labels ("Best Overall", "Best Price", "Best Coverage", "Quickest Trip") based on relative ranking; numeric score preserved as secondary text and tooltip |
 | 2026-03-17 | refactor | Replace all 23 `any` types with proper TypeScript types across 12 files; adds NearbyStore shared type, PromotionalPrice interface, typed CSV import partials, and inferred Drizzle return types |
