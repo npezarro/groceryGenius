@@ -3,13 +3,8 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const basePath = process.env.BASE_PATH || "";
-
-if (process.env.NODE_ENV === "production" && !process.env.BASE_PATH) {
-  throw new Error(
-    "BASE_PATH must be set for production builds. Use: npm run build:deploy",
-  );
-}
+const basePath = process.env.BASE_PATH ||
+  (process.env.NODE_ENV === "production" ? "/grocerygenius" : "");
 
 export default defineConfig({
   plugins: [
