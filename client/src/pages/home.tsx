@@ -12,16 +12,31 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { apiRequest } from "@/lib/queryClient";
 import { apiUrl } from "@/lib/api";
+import { Map } from "lucide-react";
 
 const ShoppingList = lazy(() => import("@/components/shopping-list"));
 const MapView = lazy(() => import("@/components/map-view"));
 const TripPlans = lazy(() => import("@/components/trip-plans"));
 const AdminPanel = lazy(() => import("@/components/admin-panel"));
 
+const isMapEnabled = import.meta.env.VITE_ENABLE_MAP === "true";
+
 function SectionLoading() {
   return (
     <div className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm min-h-[200px] flex items-center justify-center">
       <span className="text-muted-foreground text-sm">Loading...</span>
+    </div>
+  );
+}
+
+function MapComingSoon() {
+  return (
+    <div className="rounded-3xl border border-dashed border-border bg-card/95 p-6 shadow-sm min-h-[300px] flex items-center justify-center">
+      <div className="text-center text-muted-foreground">
+        <Map className="mx-auto mb-3 opacity-40" size={48} />
+        <p className="text-lg font-medium">Map View — Coming Soon</p>
+        <p className="text-sm mt-1">Interactive store maps are under development.</p>
+      </div>
     </div>
   );
 }
@@ -237,9 +252,9 @@ export default function Home() {
         {isMobile ? (
           /* Mobile: Tabbed layout */
           <Tabs defaultValue="shopping" className="w-full">
-            <TabsList className="sticky top-0 z-10 grid w-full grid-cols-3 bg-muted">
+            <TabsList className={`sticky top-0 z-10 grid w-full bg-muted ${isMapEnabled ? "grid-cols-3" : "grid-cols-2"}`}>
               <TabsTrigger value="shopping">Shopping List</TabsTrigger>
-              <TabsTrigger value="map">Map</TabsTrigger>
+              {isMapEnabled && <TabsTrigger value="map">Map</TabsTrigger>}
               <TabsTrigger value="trips">Trip Plans</TabsTrigger>
             </TabsList>
 
@@ -274,17 +289,19 @@ export default function Home() {
               </div>
             </TabsContent>
 
-            <TabsContent value="map" className="min-h-[calc(100vh-8rem)]">
-              <div className="space-y-6 pt-2">
-                <Suspense fallback={<SectionLoading />}>
-                  <MapView
-                    coordinates={coordinates}
-                    stores={stores}
-                    radius={radius}
-                  />
-                </Suspense>
-              </div>
-            </TabsContent>
+            {isMapEnabled && (
+              <TabsContent value="map" className="min-h-[calc(100vh-8rem)]">
+                <div className="space-y-6 pt-2">
+                  <Suspense fallback={<SectionLoading />}>
+                    <MapView
+                      coordinates={coordinates}
+                      stores={stores}
+                      radius={radius}
+                    />
+                  </Suspense>
+                </div>
+              </TabsContent>
+            )}
 
             <TabsContent value="trips" className="min-h-[calc(100vh-8rem)]">
               <div className="space-y-6 pt-2">
@@ -336,13 +353,17 @@ export default function Home() {
 
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-6">
-              <Suspense fallback={<SectionLoading />}>
-                <MapView
-                  coordinates={coordinates}
-                  stores={stores}
-                  radius={radius}
-                />
-              </Suspense>
+              {isMapEnabled ? (
+                <Suspense fallback={<SectionLoading />}>
+                  <MapView
+                    coordinates={coordinates}
+                    stores={stores}
+                    radius={radius}
+                  />
+                </Suspense>
+              ) : (
+                <MapComingSoon />
+              )}
 
               <Suspense fallback={<SectionLoading />}>
                 <TripPlans
