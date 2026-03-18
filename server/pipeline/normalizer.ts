@@ -75,7 +75,7 @@ export async function ingestProducts(
   storeId: string,
   source: string,
 ): Promise<{ itemsCreated: number; pricesCreated: number }> {
-  let itemsCreated = 0;
+  const itemsCreated = 0;
   let pricesCreated = 0;
 
   // Process in batches of 25 to avoid overwhelming the DB
