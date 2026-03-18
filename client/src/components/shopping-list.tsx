@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Reorder, useDragControls } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { X, Upload, Plus, List, TrendingUp, GripVertical } from "lucide-react";
 import { ShoppingListItem } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
-import PriceSparkline from "./price-sparkline";
+
+const PriceSparkline = lazy(() => import("./price-sparkline"));
 
 interface ShoppingListProps {
   items: ShoppingListItem[];
@@ -66,12 +68,19 @@ function DraggableItem({
       {itemId ? (
         <div className="flex items-center space-x-2">
           <TrendingUp size={12} className="text-muted-foreground" />
-          <PriceSparkline
-            itemId={itemId}
-            itemName={item.name}
-            className="flex-1"
-            userHasMembership={userHasMembership}
-          />
+          <Suspense fallback={
+            <div className="flex items-center space-x-2 flex-1">
+              <Skeleton className="w-16 h-8 rounded" />
+              <Skeleton className="w-12 h-4 rounded" />
+            </div>
+          }>
+            <PriceSparkline
+              itemId={itemId}
+              itemName={item.name}
+              className="flex-1"
+              userHasMembership={userHasMembership}
+            />
+          </Suspense>
         </div>
       ) : (
         <div className="text-xs text-muted-foreground flex items-center">
