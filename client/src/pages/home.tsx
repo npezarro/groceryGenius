@@ -1,10 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import LocationPreferences from "@/components/location-preferences";
-import FavoriteStores from "@/components/favorite-stores";
-import SubmitPrice from "@/components/submit-price";
-import ReceiptUpload from "@/components/receipt-upload";
 import { ShoppingListItem, LocationCoordinates, TripWeights, TripPlan, type NearbyStore } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,6 +11,10 @@ import { apiUrl } from "@/lib/api";
 import { Map } from "lucide-react";
 
 const ShoppingList = lazy(() => import("@/components/shopping-list"));
+const LocationPreferences = lazy(() => import("@/components/location-preferences"));
+const FavoriteStores = lazy(() => import("@/components/favorite-stores"));
+const SubmitPrice = lazy(() => import("@/components/submit-price"));
+const ReceiptUpload = lazy(() => import("@/components/receipt-upload"));
 const MapView = lazy(() => import("@/components/map-view"));
 const TripPlans = lazy(() => import("@/components/trip-plans"));
 const AdminPanel = lazy(() => import("@/components/admin-panel"));
@@ -268,24 +268,32 @@ export default function Home() {
                   />
                 </Suspense>
 
-                <LocationPreferences
-                  location={location}
-                  coordinates={coordinates}
-                  radius={radius}
-                  weights={weights}
-                  userHasMembership={userHasMembership}
-                  onLocationChange={setLocation}
-                  onCoordinatesChange={setCoordinates}
-                  onRadiusChange={setRadius}
-                  onWeightsChange={setWeights}
-                  onMembershipChange={setUserHasMembership}
-                  onGeneratePlans={handleGeneratePlans}
-                  isGenerating={generatePlansMutation.isPending}
-                />
+                <Suspense fallback={<SectionLoading />}>
+                  <LocationPreferences
+                    location={location}
+                    coordinates={coordinates}
+                    radius={radius}
+                    weights={weights}
+                    userHasMembership={userHasMembership}
+                    onLocationChange={setLocation}
+                    onCoordinatesChange={setCoordinates}
+                    onRadiusChange={setRadius}
+                    onWeightsChange={setWeights}
+                    onMembershipChange={setUserHasMembership}
+                    onGeneratePlans={handleGeneratePlans}
+                    isGenerating={generatePlansMutation.isPending}
+                  />
+                </Suspense>
 
-                <FavoriteStores stores={stores} />
-                <SubmitPrice stores={stores} />
-                <ReceiptUpload stores={stores} />
+                <Suspense fallback={<SectionLoading />}>
+                  <FavoriteStores stores={stores} />
+                </Suspense>
+                <Suspense fallback={<SectionLoading />}>
+                  <SubmitPrice stores={stores} />
+                </Suspense>
+                <Suspense fallback={<SectionLoading />}>
+                  <ReceiptUpload stores={stores} />
+                </Suspense>
               </div>
             </TabsContent>
 
@@ -331,24 +339,32 @@ export default function Home() {
                 />
               </Suspense>
 
-              <LocationPreferences
-                location={location}
-                coordinates={coordinates}
-                radius={radius}
-                weights={weights}
-                userHasMembership={userHasMembership}
-                onLocationChange={setLocation}
-                onCoordinatesChange={setCoordinates}
-                onRadiusChange={setRadius}
-                onWeightsChange={setWeights}
-                onMembershipChange={setUserHasMembership}
-                onGeneratePlans={handleGeneratePlans}
-                isGenerating={generatePlansMutation.isPending}
-              />
+              <Suspense fallback={<SectionLoading />}>
+                <LocationPreferences
+                  location={location}
+                  coordinates={coordinates}
+                  radius={radius}
+                  weights={weights}
+                  userHasMembership={userHasMembership}
+                  onLocationChange={setLocation}
+                  onCoordinatesChange={setCoordinates}
+                  onRadiusChange={setRadius}
+                  onWeightsChange={setWeights}
+                  onMembershipChange={setUserHasMembership}
+                  onGeneratePlans={handleGeneratePlans}
+                  isGenerating={generatePlansMutation.isPending}
+                />
+              </Suspense>
 
-              <FavoriteStores stores={stores} />
-              <SubmitPrice stores={stores} />
-              <ReceiptUpload stores={stores} />
+              <Suspense fallback={<SectionLoading />}>
+                <FavoriteStores stores={stores} />
+              </Suspense>
+              <Suspense fallback={<SectionLoading />}>
+                <SubmitPrice stores={stores} />
+              </Suspense>
+              <Suspense fallback={<SectionLoading />}>
+                <ReceiptUpload stores={stores} />
+              </Suspense>
             </div>
 
             {/* Main Content */}
