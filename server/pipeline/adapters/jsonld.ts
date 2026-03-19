@@ -59,7 +59,7 @@ export function parseJsonLdFromHtml(html: string): RawProduct[] {
       for (const item of items) {
         if (!isProductType(item["@type"])) continue;
 
-        const product = item as JsonLdProduct;
+        const product = item as unknown as JsonLdProduct;
         const offer = normalizeOffer(product);
         if (!offer) continue;
 
