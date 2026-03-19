@@ -10,11 +10,11 @@
  * All times are staggered to avoid running everything simultaneously.
  */
 
-import cron from "node-cron";
+import cron, { type ScheduledTask } from "node-cron";
 import { runAllAdapters, getAdapter, runAdapter } from "./index";
 import type { PipelineResult } from "./types";
 
-let scheduledTasks: cron.ScheduledTask[] = [];
+let scheduledTasks: ScheduledTask[] = [];
 let isRunning = false;
 
 /** Start the pipeline scheduler */

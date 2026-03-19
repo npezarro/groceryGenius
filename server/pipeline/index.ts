@@ -179,7 +179,7 @@ export async function runAllAdapters(zipCode: string = "94102"): Promise<Pipelin
 export async function getRecentRuns(limit: number = 20): Promise<ScrapeRun[]> {
   return await db.select().from(scrapeRuns)
     .orderBy(desc(scrapeRuns.startedAt))
-    .limit(limit);
+    .limit(limit) as ScrapeRun[];
 }
 
 /** Get the last successful run for a source */
@@ -187,7 +187,7 @@ export async function getLastSuccessfulRun(sourceId: string): Promise<ScrapeRun 
   const [run] = await db.select().from(scrapeRuns)
     .where(and(eq(scrapeRuns.source, sourceId), eq(scrapeRuns.status, "completed")))
     .orderBy(desc(scrapeRuns.completedAt))
-    .limit(1);
+    .limit(1) as ScrapeRun[];
   return run || null;
 }
 
