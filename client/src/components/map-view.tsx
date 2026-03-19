@@ -15,8 +15,8 @@ export default function MapView({ coordinates, stores, radius: _radius }: MapVie
     ? (storesWithCoords.reduce((sum, store) => {
         if (!coordinates) return sum;
         const dist = Math.sqrt(
-          Math.pow(coordinates.lat - store.lat, 2) + 
-          Math.pow(coordinates.lng - store.lng, 2)
+          Math.pow(coordinates.lat - store.lat!, 2) +
+          Math.pow(coordinates.lng - store.lng!, 2)
         ) * 69; // Rough conversion to miles
         return sum + dist;
       }, 0) / storesWithCoords.length).toFixed(1)
