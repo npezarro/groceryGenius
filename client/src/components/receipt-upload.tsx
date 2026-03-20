@@ -148,8 +148,9 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
         {showForm && (
           <div className="space-y-3 border-t pt-3 mb-3">
             <div>
-              <Label className="text-xs">Store</Label>
+              <Label htmlFor="receipt-store" className="text-xs">Store</Label>
               <select
+                id="receipt-store"
                 value={storeId}
                 onChange={(e) => setStoreId(e.target.value)}
                 className="w-full h-8 text-sm border border-input rounded-md px-2 bg-background"
@@ -163,8 +164,9 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
 
             <div className="flex gap-2">
               <div className="flex-1">
-                <Label className="text-xs">Purchase Date</Label>
+                <Label htmlFor="receipt-date" className="text-xs">Purchase Date</Label>
                 <Input
+                  id="receipt-date"
                   type="date"
                   value={purchaseDate}
                   onChange={(e) => setPurchaseDate(e.target.value)}
@@ -185,6 +187,7 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
                     size="sm"
                     className="absolute top-1 right-1 h-6 w-6 p-0"
                     onClick={() => setImagePreview(null)}
+                    aria-label="Remove receipt photo"
                   >
                     <Trash2 size={12} />
                   </Button>
@@ -217,7 +220,7 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
                       className="h-7 text-xs w-20"
                     />
                     {items.length > 1 && (
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removeItem(i)}>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removeItem(i)} aria-label={`Remove ${item.name || 'item'}`}>
                         <Trash2 size={10} />
                       </Button>
                     )}
