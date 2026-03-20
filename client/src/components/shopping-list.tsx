@@ -47,6 +47,9 @@ function DraggableItem({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div
+            role="button"
+            tabIndex={0}
+            aria-label={`Drag to reorder ${item.name}`}
             onPointerDown={(e) => controls.start(e)}
             className="cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -59,6 +62,7 @@ function DraggableItem({
           variant="ghost"
           onClick={() => onRemove(item.id)}
           className="text-destructive hover:text-destructive/80 h-6 w-6 p-0"
+          aria-label={`Remove ${item.name}`}
           data-testid={`button-remove-${item.id}`}
         >
           <X size={14} />
@@ -214,6 +218,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
               size="sm"
               onClick={addItem}
               className="absolute right-2 top-2 h-6 w-6 p-0"
+              aria-label="Add item"
               data-testid="button-add-item"
             >
               <Plus size={14} />
