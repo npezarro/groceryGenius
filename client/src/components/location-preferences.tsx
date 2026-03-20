@@ -183,6 +183,7 @@ export default function LocationPreferences({
             max={25}
             step={1}
             className="w-full"
+            aria-label={`Store radius: ${radius} miles`}
             data-testid="slider-radius"
           />
           <div className="flex justify-between text-xs text-muted-foreground mt-1">
@@ -227,13 +228,14 @@ export default function LocationPreferences({
             </div>
             <Slider
               value={[weights.price * 100]}
-              onValueChange={(value) => 
+              onValueChange={(value) =>
                 onWeightsChange(normalizeWeights({ price: value[0] / 100 }))
               }
               min={0}
               max={100}
               step={5}
               className="w-full"
+              aria-label={`Price weight: ${Math.round(weights.price * 100)}%`}
               data-testid="slider-price-weight"
             />
           </div>
@@ -247,13 +249,14 @@ export default function LocationPreferences({
             </div>
             <Slider
               value={[weights.time * 100]}
-              onValueChange={(value) => 
+              onValueChange={(value) =>
                 onWeightsChange(normalizeWeights({ time: value[0] / 100 }))
               }
               min={0}
               max={100}
               step={5}
               className="w-full"
+              aria-label={`Travel time weight: ${Math.round(weights.time * 100)}%`}
               data-testid="slider-time-weight"
             />
           </div>
@@ -267,13 +270,14 @@ export default function LocationPreferences({
             </div>
             <Slider
               value={[weights.distance * 100]}
-              onValueChange={(value) => 
+              onValueChange={(value) =>
                 onWeightsChange(normalizeWeights({ distance: value[0] / 100 }))
               }
               min={0}
               max={100}
               step={5}
               className="w-full"
+              aria-label={`Distance weight: ${Math.round(weights.distance * 100)}%`}
               data-testid="slider-distance-weight"
             />
           </div>
