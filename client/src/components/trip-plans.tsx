@@ -4,23 +4,21 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Route, ExternalLink, Printer, Clock, MapPin, Star, Search, Navigation, DollarSign, ShoppingCart, Zap } from "lucide-react";
 import { TripPlan, LocationCoordinates } from "@/lib/types";
+import { getSemanticLabel as getSemanticLabelBase, formatTripTime, generateGoogleMapsLink, generateAppleMapsLink } from "@/lib/trip-utils";
+
+const iconMap: Record<string, typeof Star> = {
+  "Best Overall": Star,
+  "Great Option": Star,
+  "Good Option": Star,
+  "Alternative": Star,
+  "Best Price": DollarSign,
+  "Best Coverage": ShoppingCart,
+  "Quickest Trip": Zap,
+};
 
 function getSemanticLabel(plan: TripPlan, allPlans: TripPlan[]): { label: string; color: string; icon: typeof Star } {
-  if (allPlans.length <= 1) return { label: "Best Overall", color: "text-yellow-600", icon: Star };
-
-  const bestScore = Math.max(...allPlans.map(p => p.score));
-  const lowestCost = Math.min(...allPlans.map(p => p.totalCost));
-  const bestCoverage = Math.max(...allPlans.map(p => p.coverage));
-  const shortestTime = Math.min(...allPlans.map(p => p.totalTime));
-
-  if (plan.score === bestScore) return { label: "Best Overall", color: "text-yellow-600", icon: Star };
-  if (plan.totalCost === lowestCost) return { label: "Best Price", color: "text-green-600", icon: DollarSign };
-  if (plan.coverage === bestCoverage && plan.coverage > 0) return { label: "Best Coverage", color: "text-blue-600", icon: ShoppingCart };
-  if (plan.totalTime === shortestTime) return { label: "Quickest Trip", color: "text-purple-600", icon: Zap };
-
-  if (plan.score >= 80) return { label: "Great Option", color: "text-yellow-600", icon: Star };
-  if (plan.score >= 50) return { label: "Good Option", color: "text-muted-foreground", icon: Star };
-  return { label: "Alternative", color: "text-muted-foreground", icon: Star };
+  const base = getSemanticLabelBase(plan, allPlans);
+  return { ...base, icon: iconMap[base.label] || Star };
 }
 
 interface TripPlansProps {
@@ -31,35 +29,6 @@ interface TripPlansProps {
 }
 
 export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoordinates }: TripPlansProps) {
-  const generateGoogleMapsLink = (plan: TripPlan) => {
-    if (!userCoordinates) return "#";
-    
-    const waypoints = plan.stores
-      .filter(s => s.store.lat && s.store.lng)
-      .map(s => `${s.store.lat},${s.store.lng}`)
-      .join('/');
-    
-    const origin = `${userCoordinates.lat},${userCoordinates.lng}`;
-    
-    return `https://www.google.com/maps/dir/${origin}/${waypoints}`;
-  };
-
-  const generateAppleMapsLink = (plan: TripPlan) => {
-    if (!userCoordinates) return "#";
-    
-    const firstStore = plan.stores.find(s => s.store.lat && s.store.lng);
-    if (!firstStore) return "#";
-    
-    // Apple Maps doesn't support multi-waypoint routing as easily, so we'll just route to the first store
-    return `http://maps.apple.com/?saddr=${userCoordinates.lat},${userCoordinates.lng}&daddr=${firstStore.store.lat},${firstStore.store.lng}`;
-  };
-
-  const formatTime = (minutes: number) => {
-    if (minutes < 60) return `${Math.round(minutes)} min`;
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.round(minutes % 60);
-    return `${hours}h ${mins}m`;
-  };
 
   if (isLoading) {
     return (
@@ -146,7 +115,7 @@ export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoor
                   <div className="text-center">
                     <div className="text-sm font-medium flex items-center justify-center">
                       <Clock size={14} className="mr-1" />
-                      {formatTime(plan.totalTime)}
+                      {formatTripTime(plan.totalTime)}
                     </div>
                     <div className="text-xs text-muted-foreground">Travel Time</div>
                   </div>
@@ -237,7 +206,7 @@ export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoor
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(generateGoogleMapsLink(plan), '_blank')}
+                    onClick={() => window.open(generateGoogleMapsLink(plan, userCoordinates), '_blank')}
                     data-testid={`button-google-maps-${index}`}
                     disabled={!userCoordinates}
                   >
@@ -247,7 +216,7 @@ export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoor
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(generateAppleMapsLink(plan), '_blank')}
+                    onClick={() => window.open(generateAppleMapsLink(plan, userCoordinates), '_blank')}
                     data-testid={`button-apple-maps-${index}`}
                     disabled={!userCoordinates}
                   >

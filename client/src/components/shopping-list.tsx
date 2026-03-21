@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { X, Upload, Plus, List, TrendingUp, GripVertical } from "lucide-react";
 import { ShoppingListItem } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
+import { matchItemId, parseCsvItems, parseBulkItems } from "@/lib/shopping-utils";
 
 const PriceSparkline = lazy(() => import("./price-sparkline"));
 
@@ -110,16 +111,6 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
     }
   });
 
-  const getItemId = (itemName: string) => {
-    if (!dbItems) return null;
-    const dbItem = dbItems.find((item: { id: string; name: string }) =>
-      item.name.toLowerCase() === itemName.toLowerCase() ||
-      item.name.toLowerCase().includes(itemName.toLowerCase()) ||
-      itemName.toLowerCase().includes(item.name.toLowerCase())
-    );
-    return dbItem?.id || null;
-  };
-
   const addItem = () => {
     if (newItemName.trim()) {
       const newItem: ShoppingListItem = {
@@ -137,16 +128,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
 
   const addBulkItems = () => {
     if (bulkItems.trim()) {
-      const newItems = bulkItems
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line)
-        .map(name => ({
-          id: Date.now().toString() + Math.random(),
-          name
-        }));
-      
-      onItemsChange([...items, ...newItems]);
+      onItemsChange([...items, ...parseBulkItems(bulkItems)]);
       setBulkItems("");
     }
   };
@@ -158,13 +140,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
       reader.onload = (e) => {
         const csvText = e.target?.result as string;
         if (csvText) {
-          const lines = csvText.split('\n').filter(line => line.trim());
-          const newItems = lines.map(line => ({
-            id: Date.now().toString() + Math.random(),
-            name: line.split(',')[0].trim().replace(/"/g, '')
-          })).filter(item => item.name);
-          
-          onItemsChange([...items, ...newItems]);
+          onItemsChange([...items, ...parseCsvItems(csvText)]);
         }
       };
       reader.readAsText(file);
@@ -270,7 +246,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
                 <DraggableItem
                   key={item.id}
                   item={item}
-                  itemId={getItemId(item.name)}
+                  itemId={matchItemId(item.name, dbItems)}
                   onRemove={removeItem}
                   userHasMembership={userHasMembership}
                 />
