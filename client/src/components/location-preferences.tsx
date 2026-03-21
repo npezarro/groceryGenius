@@ -9,6 +9,7 @@ import { MapPin, Crosshair, Route, Star } from "lucide-react";
 import { LocationCoordinates, TripWeights } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { apiUrl } from "@/lib/api";
+import { normalizeWeights } from "@/lib/preference-utils";
 
 interface LocationPreferencesProps {
   location: string;
@@ -41,22 +42,6 @@ export default function LocationPreferences({
 }: LocationPreferencesProps) {
   const { toast } = useToast();
   const [isGeolocating, setIsGeolocating] = useState(false);
-
-  // Ensure weights sum to 100%
-  const normalizeWeights = (newWeights: Partial<TripWeights>) => {
-    const updated = { ...weights, ...newWeights };
-    const total = updated.price + updated.time + updated.distance;
-    
-    if (total > 0) {
-      return {
-        price: updated.price / total,
-        time: updated.time / total,
-        distance: updated.distance / total
-      };
-    }
-    
-    return weights;
-  };
 
   const geocodeLocation = async (address: string) => {
     try {
@@ -229,7 +214,7 @@ export default function LocationPreferences({
             <Slider
               value={[weights.price * 100]}
               onValueChange={(value) =>
-                onWeightsChange(normalizeWeights({ price: value[0] / 100 }))
+                onWeightsChange(normalizeWeights(weights, { price: value[0] / 100 }))
               }
               min={0}
               max={100}
@@ -250,7 +235,7 @@ export default function LocationPreferences({
             <Slider
               value={[weights.time * 100]}
               onValueChange={(value) =>
-                onWeightsChange(normalizeWeights({ time: value[0] / 100 }))
+                onWeightsChange(normalizeWeights(weights, { time: value[0] / 100 }))
               }
               min={0}
               max={100}
@@ -271,7 +256,7 @@ export default function LocationPreferences({
             <Slider
               value={[weights.distance * 100]}
               onValueChange={(value) =>
-                onWeightsChange(normalizeWeights({ distance: value[0] / 100 }))
+                onWeightsChange(normalizeWeights(weights, { distance: value[0] / 100 }))
               }
               min={0}
               max={100}

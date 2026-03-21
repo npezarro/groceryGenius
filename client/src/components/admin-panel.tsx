@@ -8,6 +8,7 @@ import { Settings, Upload, MapPin, Database, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DataStats } from "@/lib/types";
 import { apiRequest } from "@/lib/queryClient";
+import { computeGeocodingProgress } from "@/lib/preference-utils";
 
 export default function AdminPanel() {
   const { toast } = useToast();
@@ -127,8 +128,8 @@ export default function AdminPanel() {
     queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
   };
 
-  const geocodingProgress = stats ? 
-    (stats.geocodedStoreCount / Math.max(stats.storeCount, 1)) * 100 : 0;
+  const geocodingProgress = stats ?
+    computeGeocodingProgress(stats.geocodedStoreCount, stats.storeCount) : 0;
 
   return (
     <Card className="shadow-sm" id="admin">
