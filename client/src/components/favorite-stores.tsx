@@ -75,6 +75,7 @@ export default function FavoriteStores({ stores }: FavoriteStoresProps) {
                 className="h-7 w-7 p-0 flex-shrink-0"
                 onClick={() => toggle.mutate(store.id)}
                 disabled={toggle.isPending}
+                aria-label={favSet.has(store.id) ? `Remove ${store.name} from favorites` : `Add ${store.name} to favorites`}
               >
                 {favSet.has(store.id) ? (
                   <Heart size={14} className="text-red-500 fill-red-500" />

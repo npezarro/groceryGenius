@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { X, Upload, Plus, List, TrendingUp, GripVertical } from "lucide-react";
 import { ShoppingListItem } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
+import { matchItemId, parseCsvItems, parseBulkItems } from "@/lib/shopping-utils";
 
 const PriceSparkline = lazy(() => import("./price-sparkline"));
 
@@ -47,6 +48,9 @@ function DraggableItem({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div
+            role="button"
+            tabIndex={0}
+            aria-label={`Drag to reorder ${item.name}`}
             onPointerDown={(e) => controls.start(e)}
             className="cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -59,6 +63,7 @@ function DraggableItem({
           variant="ghost"
           onClick={() => onRemove(item.id)}
           className="text-destructive hover:text-destructive/80 h-6 w-6 p-0"
+          aria-label={`Remove ${item.name}`}
           data-testid={`button-remove-${item.id}`}
         >
           <X size={14} />
@@ -106,16 +111,6 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
     }
   });
 
-  const getItemId = (itemName: string) => {
-    if (!dbItems) return null;
-    const dbItem = dbItems.find((item: { id: string; name: string }) =>
-      item.name.toLowerCase() === itemName.toLowerCase() ||
-      item.name.toLowerCase().includes(itemName.toLowerCase()) ||
-      itemName.toLowerCase().includes(item.name.toLowerCase())
-    );
-    return dbItem?.id || null;
-  };
-
   const addItem = () => {
     if (newItemName.trim()) {
       const newItem: ShoppingListItem = {
@@ -133,16 +128,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
 
   const addBulkItems = () => {
     if (bulkItems.trim()) {
-      const newItems = bulkItems
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line)
-        .map(name => ({
-          id: Date.now().toString() + Math.random(),
-          name
-        }));
-      
-      onItemsChange([...items, ...newItems]);
+      onItemsChange([...items, ...parseBulkItems(bulkItems)]);
       setBulkItems("");
     }
   };
@@ -154,13 +140,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
       reader.onload = (e) => {
         const csvText = e.target?.result as string;
         if (csvText) {
-          const lines = csvText.split('\n').filter(line => line.trim());
-          const newItems = lines.map(line => ({
-            id: Date.now().toString() + Math.random(),
-            name: line.split(',')[0].trim().replace(/"/g, '')
-          })).filter(item => item.name);
-          
-          onItemsChange([...items, ...newItems]);
+          onItemsChange([...items, ...parseCsvItems(csvText)]);
         }
       };
       reader.readAsText(file);
@@ -214,6 +194,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
               size="sm"
               onClick={addItem}
               className="absolute right-2 top-2 h-6 w-6 p-0"
+              aria-label="Add item"
               data-testid="button-add-item"
             >
               <Plus size={14} />
@@ -265,7 +246,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
                 <DraggableItem
                   key={item.id}
                   item={item}
-                  itemId={getItemId(item.name)}
+                  itemId={matchItemId(item.name, dbItems)}
                   onRemove={removeItem}
                   userHasMembership={userHasMembership}
                 />
