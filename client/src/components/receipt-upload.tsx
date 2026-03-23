@@ -177,8 +177,8 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
 
             {/* Photo upload */}
             <div>
-              <Label className="text-xs">Receipt Photo (optional)</Label>
-              <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+              <Label htmlFor="receipt-photo" className="text-xs">Receipt Photo (optional)</Label>
+              <input id="receipt-photo" ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
               {imagePreview ? (
                 <div className="relative mt-1">
                   <img src={imagePreview} alt="Receipt" className="w-full rounded border max-h-48 object-contain" />
