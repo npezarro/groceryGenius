@@ -47,10 +47,10 @@ export default function MapView({ coordinates, stores, radius: _radius }: MapVie
           
           {/* Map Controls */}
           <div className="absolute top-4 right-4 space-y-2">
-            <Button size="sm" variant="outline" className="h-8 w-8 p-0 bg-white/90 hover:bg-white">
+            <Button size="sm" variant="outline" className="h-8 w-8 p-0 bg-white/90 hover:bg-white" aria-label="Zoom in">
               <Plus size={14} />
             </Button>
-            <Button size="sm" variant="outline" className="h-8 w-8 p-0 bg-white/90 hover:bg-white">
+            <Button size="sm" variant="outline" className="h-8 w-8 p-0 bg-white/90 hover:bg-white" aria-label="Zoom out">
               <Minus size={14} />
             </Button>
           </div>

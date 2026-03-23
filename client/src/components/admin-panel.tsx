@@ -148,10 +148,11 @@ export default function AdminPanel() {
             </h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm text-muted-foreground mb-1">
+                <label htmlFor="stores-csv" className="block text-sm text-muted-foreground mb-1">
                   Stores CSV
                 </label>
                 <Input
+                  id="stores-csv"
                   type="file"
                   accept=".csv"
                   onChange={(e) => setStoresFile(e.target.files?.[0] || null)}
@@ -172,10 +173,11 @@ export default function AdminPanel() {
               </div>
               
               <div>
-                <label className="block text-sm text-muted-foreground mb-1">
+                <label htmlFor="items-csv" className="block text-sm text-muted-foreground mb-1">
                   Items CSV
                 </label>
                 <Input
+                  id="items-csv"
                   type="file"
                   accept=".csv"
                   onChange={(e) => setItemsFile(e.target.files?.[0] || null)}
@@ -196,10 +198,11 @@ export default function AdminPanel() {
               </div>
               
               <div>
-                <label className="block text-sm text-muted-foreground mb-1">
+                <label htmlFor="prices-csv" className="block text-sm text-muted-foreground mb-1">
                   Prices CSV
                 </label>
                 <Input
+                  id="prices-csv"
                   type="file"
                   accept=".csv"
                   onChange={(e) => setPricesFile(e.target.files?.[0] || null)}
