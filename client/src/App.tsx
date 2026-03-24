@@ -40,7 +40,7 @@ function App() {
           <WouterRouter base={BASE_PATH || undefined}>
             <Toaster />
             <AppRoutes />
-            <LoadTestDataBar />
+            {import.meta.env.DEV && <LoadTestDataBar />}
           </WouterRouter>
         </TooltipProvider>
       </AuthProvider>

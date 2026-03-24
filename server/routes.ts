@@ -371,8 +371,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const basePath = process.env.BASE_PATH || "";
   const router = express.Router();
 
-  // --- Diagnostics: counts + masked DB info
-  router.get("/api/diag/stats", async (_req, res) => {
+  // --- Diagnostics: counts + masked DB info (requires auth or admin key)
+  router.get("/api/diag/stats", async (req, res) => {
+    if (!req.session.userId && !isAuthorized(req)) {
+      return res.status(401).json({ ok: false, error: "Authentication required" });
+    }
     try {
       const stats = await storage.getDataStats();
       res.json({ ok: true, stats });
@@ -847,11 +850,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session.userId) {
       return res.json(null);
     }
-    const user = await storage.getUser(req.session.userId);
-    if (!user) {
-      return res.json(null);
+    try {
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.json(null);
+      }
+      res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName });
+    } catch {
+      res.status(500).json({ error: "Failed to fetch user" });
     }
-    res.json({ id: user.id, username: user.username, email: user.email, displayName: user.displayName });
   });
 
   // ── Favorite stores ─────────────────────────────────
