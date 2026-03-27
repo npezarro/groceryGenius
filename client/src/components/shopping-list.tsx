@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { X, Upload, Plus, List, TrendingUp, GripVertical } from "lucide-react";
+import { X, Upload, Plus, List, TrendingUp, GripVertical, Check, Trash2 } from "lucide-react";
 import { ShoppingListItem } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
 import { matchItemId, parseCsvItems, parseBulkItems } from "@/lib/shopping-utils";
@@ -23,21 +23,24 @@ function DraggableItem({
   item,
   itemId,
   onRemove,
+  onToggleCheck,
   userHasMembership,
 }: {
   item: ShoppingListItem;
   itemId: string | null;
   onRemove: (id: string) => void;
+  onToggleCheck: (id: string) => void;
   userHasMembership: boolean;
 }) {
   const controls = useDragControls();
+  const isChecked = item.checked ?? false;
 
   return (
     <Reorder.Item
       value={item}
       dragListener={false}
       dragControls={controls}
-      className="p-3 bg-muted rounded-md cursor-default"
+      className={`p-3 rounded-md cursor-default transition-opacity ${isChecked ? "bg-muted/50 opacity-60" : "bg-muted"}`}
       whileDrag={{
         scale: 1.03,
         boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15), 0 4px 6px -2px rgba(0,0,0,0.08)",
@@ -56,7 +59,20 @@ function DraggableItem({
           >
             <GripVertical size={16} />
           </div>
-          <span className="text-sm font-medium">{item.name}</span>
+          <button
+            onClick={() => onToggleCheck(item.id)}
+            className={`flex items-center justify-center h-5 w-5 rounded border transition-colors ${
+              isChecked
+                ? "bg-primary border-primary text-primary-foreground"
+                : "border-border hover:border-primary"
+            }`}
+            aria-label={`Mark ${item.name} as ${isChecked ? "unchecked" : "checked"}`}
+          >
+            {isChecked && <Check size={12} />}
+          </button>
+          <span className={`text-sm font-medium ${isChecked ? "line-through text-muted-foreground" : ""}`}>
+            {item.name}
+          </span>
         </div>
         <Button
           size="sm"
@@ -70,7 +86,7 @@ function DraggableItem({
         </Button>
       </div>
 
-      {itemId ? (
+      {!isChecked && itemId ? (
         <div className="flex items-center space-x-2">
           <TrendingUp size={12} className="text-muted-foreground" />
           <Suspense fallback={
@@ -87,12 +103,12 @@ function DraggableItem({
             />
           </Suspense>
         </div>
-      ) : (
+      ) : !isChecked ? (
         <div className="text-xs text-muted-foreground flex items-center">
           <TrendingUp size={12} className="mr-1 opacity-50" />
           <span>Price history not available</span>
         </div>
-      )}
+      ) : null}
     </Reorder.Item>
   );
 }
@@ -125,6 +141,22 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
   const removeItem = (id: string) => {
     onItemsChange(items.filter(item => item.id !== id));
   };
+
+  const toggleCheck = (id: string) => {
+    const updated = items.map(item =>
+      item.id === id ? { ...item, checked: !item.checked } : item
+    );
+    // Sort: unchecked first, checked last, preserving order within each group
+    const unchecked = updated.filter(i => !i.checked);
+    const checked = updated.filter(i => i.checked);
+    onItemsChange([...unchecked, ...checked]);
+  };
+
+  const clearChecked = () => {
+    onItemsChange(items.filter(item => !item.checked));
+  };
+
+  const checkedCount = items.filter(i => i.checked).length;
 
   const addBulkItems = () => {
     if (bulkItems.trim()) {
@@ -224,9 +256,22 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
 
         {/* Current List */}
         <div className="mt-4">
-          <h3 className="text-sm font-medium text-muted-foreground mb-2">
-            Current List ({items.length} items)
-          </h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Current List ({items.length} items{checkedCount > 0 ? `, ${checkedCount} checked` : ""})
+            </h3>
+            {checkedCount > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={clearChecked}
+                className="text-xs text-muted-foreground hover:text-destructive h-7"
+              >
+                <Trash2 size={12} className="mr-1" />
+                Clear checked
+              </Button>
+            )}
+          </div>
 
           {items.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -248,6 +293,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
                   item={item}
                   itemId={matchItemId(item.name, dbItems)}
                   onRemove={removeItem}
+                  onToggleCheck={toggleCheck}
                   userHasMembership={userHasMembership}
                 />
               ))}
