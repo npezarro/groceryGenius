@@ -410,22 +410,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Shopping list endpoints
-  router.post("/api/shopping-lists", async (req: Request, res: Response) => {
+  router.get("/api/shopping-lists", requireAuth, async (req: Request, res: Response) => {
     try {
-      const validatedData = insertShoppingListSchema.parse(req.body);
-      const shoppingList = await storage.createShoppingList(validatedData);
+      const lists = await storage.getUserShoppingLists(req.session.userId!);
+      res.json(lists);
+    } catch (_error) {
+      res.status(500).json({ error: "Failed to fetch shopping lists" });
+    }
+  });
+
+  router.post("/api/shopping-lists", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { name, items } = req.body;
+      const shoppingList = await storage.createShoppingList({
+        name: name || "Shopping List",
+        items: items || [],
+        userId: req.session.userId!,
+      });
       res.json(shoppingList);
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Invalid data" });
     }
   });
 
-  router.get("/api/shopping-lists", async (req: Request, res: Response) => {
+  router.patch("/api/shopping-lists/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const lists = await storage.getAllShoppingLists();
-      res.json(lists);
+      const { name, items } = req.body;
+      const updated = await storage.updateShoppingList(req.params.id, req.session.userId!, { name, items });
+      if (!updated) {
+        res.status(404).json({ error: "List not found" });
+        return;
+      }
+      res.json(updated);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Invalid data" });
+    }
+  });
+
+  router.delete("/api/shopping-lists/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const deleted = await storage.deleteShoppingList(req.params.id, req.session.userId!);
+      if (!deleted) {
+        res.status(404).json({ error: "List not found" });
+        return;
+      }
+      res.json({ ok: true });
     } catch (_error) {
-      res.status(500).json({ error: "Failed to fetch shopping lists" });
+      res.status(500).json({ error: "Failed to delete shopping list" });
     }
   });
 

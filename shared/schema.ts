@@ -59,6 +59,7 @@ export const shoppingLists = pgTable("shopping_lists", {
   items: jsonb("items").notNull(),
   userId: varchar("user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const tripPlans = pgTable("trip_plans", {
@@ -226,6 +227,7 @@ export const insertStoreItemSchema = createInsertSchema(storeItems).omit({
 export const insertShoppingListSchema = createInsertSchema(shoppingLists).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export const insertTripPlanSchema = createInsertSchema(tripPlans).omit({

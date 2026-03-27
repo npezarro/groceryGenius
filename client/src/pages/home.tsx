@@ -1,16 +1,19 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ShoppingListItem, LocationCoordinates, TripWeights, TripPlan, type NearbyStore } from "@/lib/types";
+import { LocationCoordinates, TripWeights, TripPlan, type NearbyStore } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useShoppingLists } from "@/hooks/use-shopping-lists";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { apiUrl } from "@/lib/api";
-import { Map } from "lucide-react";
+import { Map, Import } from "lucide-react";
 
 const ShoppingList = lazy(() => import("@/components/shopping-list"));
+const ListSelector = lazy(() => import("@/components/list-selector"));
 const LocationPreferences = lazy(() => import("@/components/location-preferences"));
 const FavoriteStores = lazy(() => import("@/components/favorite-stores"));
 const SubmitPrice = lazy(() => import("@/components/submit-price"));
@@ -45,9 +48,9 @@ export default function Home() {
   const { toast } = useToast();
   const { user, logout } = useAuth();
   const isMobile = useIsMobile();
-  
+  const shoppingLists = useShoppingLists();
+
   // State
-  const [shoppingItems, setShoppingItems] = useState<ShoppingListItem[]>([]);
   const [location, setLocation] = useState("123 Main St, San Francisco, CA");
   const [coordinates, setCoordinates] = useState<LocationCoordinates | null>(null);
   const [radius, setRadius] = useState(5);
@@ -107,12 +110,12 @@ export default function Home() {
   // Trip planning mutation
   const generatePlansMutation = useMutation({
     mutationFn: async () => {
-      if (!coordinates || shoppingItems.length === 0) {
+      if (!coordinates || shoppingLists.items.length === 0) {
         throw new Error("Location and shopping items are required");
       }
 
       const response = await apiRequest('POST', '/api/trip-plans', {
-        items: shoppingItems.map(item => item.name),
+        items: shoppingLists.items.map(item => item.name),
         location: coordinates,
         radius,
         weights,
@@ -155,7 +158,7 @@ export default function Home() {
       return;
     }
     
-    if (shoppingItems.length === 0) {
+    if (shoppingLists.items.length === 0) {
       toast({
         title: "Items required",
         description: "Please add items to your shopping list",
@@ -230,7 +233,7 @@ export default function Home() {
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div className="rounded-2xl border border-border bg-background p-3 text-center">
                 <p className="text-xs text-muted-foreground">Items</p>
-                <p className="text-3xl font-semibold">{shoppingItems.length}</p>
+                <p className="text-3xl font-semibold">{shoppingLists.items.length}</p>
               </div>
               <div className="rounded-2xl border border-border bg-background p-3 text-center">
                 <p className="text-xs text-muted-foreground">Stores</p>
@@ -260,10 +263,35 @@ export default function Home() {
 
             <TabsContent value="shopping" className="min-h-[calc(100vh-8rem)]">
               <div className="space-y-6 pt-2">
+                {shoppingLists.hasGuestItems && (
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
+                    <span className="text-sm">You have items from before signing in. Import them?</span>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={shoppingLists.dismissGuestImport}>Dismiss</Button>
+                      <Button size="sm" onClick={shoppingLists.importGuestItems}>
+                        <Import size={14} className="mr-1" /> Import
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {user && shoppingLists.lists.length > 0 && (
+                  <Suspense fallback={null}>
+                    <ListSelector
+                      lists={shoppingLists.lists}
+                      activeListId={shoppingLists.activeListId}
+                      activeListName={shoppingLists.activeListName}
+                      isSaving={shoppingLists.isSaving}
+                      onSwitch={shoppingLists.switchList}
+                      onCreate={shoppingLists.createList}
+                      onDelete={shoppingLists.deleteList}
+                      onRename={shoppingLists.renameList}
+                    />
+                  </Suspense>
+                )}
                 <Suspense fallback={<SectionLoading />}>
                   <ShoppingList
-                    items={shoppingItems}
-                    onItemsChange={setShoppingItems}
+                    items={shoppingLists.items}
+                    onItemsChange={shoppingLists.setItems}
                     userHasMembership={userHasMembership}
                   />
                 </Suspense>
@@ -331,10 +359,35 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Sidebar */}
             <div className="lg:col-span-1 space-y-6">
+              {shoppingLists.hasGuestItems && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
+                  <span className="text-sm">You have items from before signing in. Import them?</span>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={shoppingLists.dismissGuestImport}>Dismiss</Button>
+                    <Button size="sm" onClick={shoppingLists.importGuestItems}>
+                      <Import size={14} className="mr-1" /> Import
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {user && shoppingLists.lists.length > 0 && (
+                <Suspense fallback={null}>
+                  <ListSelector
+                    lists={shoppingLists.lists}
+                    activeListId={shoppingLists.activeListId}
+                    activeListName={shoppingLists.activeListName}
+                    isSaving={shoppingLists.isSaving}
+                    onSwitch={shoppingLists.switchList}
+                    onCreate={shoppingLists.createList}
+                    onDelete={shoppingLists.deleteList}
+                    onRename={shoppingLists.renameList}
+                  />
+                </Suspense>
+              )}
               <Suspense fallback={<SectionLoading />}>
                 <ShoppingList
-                  items={shoppingItems}
-                  onItemsChange={setShoppingItems}
+                  items={shoppingLists.items}
+                  onItemsChange={shoppingLists.setItems}
                   userHasMembership={userHasMembership}
                 />
               </Suspense>

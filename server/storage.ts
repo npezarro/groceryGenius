@@ -225,6 +225,27 @@ export class DatabaseStorage {
     return await db.select().from(shoppingLists).orderBy(desc(shoppingLists.createdAt));
   }
 
+  async getUserShoppingLists(userId: string): Promise<ShoppingList[]> {
+    return await db.select().from(shoppingLists)
+      .where(eq(shoppingLists.userId, userId))
+      .orderBy(desc(shoppingLists.updatedAt));
+  }
+
+  async updateShoppingList(id: string, userId: string, data: { name?: string; items?: unknown }): Promise<ShoppingList | undefined> {
+    const [updated] = await db.update(shoppingLists)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(shoppingLists.id, id), eq(shoppingLists.userId, userId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteShoppingList(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(shoppingLists)
+      .where(and(eq(shoppingLists.id, id), eq(shoppingLists.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
   // ── Trip Plan methods ───────────────────────────────
 
   async createTripPlan(plan: InsertTripPlan): Promise<TripPlan> {
