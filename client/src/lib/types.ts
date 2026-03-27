@@ -3,6 +3,16 @@ export interface ShoppingListItem {
   name: string;
   quantity?: number;
   unit?: string;
+  checked?: boolean;
+}
+
+export interface SavedShoppingList {
+  id: string;
+  name: string;
+  items: ShoppingListItem[];
+  userId: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 export interface LocationCoordinates {
