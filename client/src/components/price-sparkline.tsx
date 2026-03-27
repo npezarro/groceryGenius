@@ -20,6 +20,8 @@ interface PricePoint {
   date: string;
   price: number;
   capturedAt: string;
+  unit?: string;
+  storeName?: string;
 }
 
 interface PromotionalPrice {
@@ -72,10 +74,12 @@ export default function PriceSparkline({
     enabled: !!itemId
   });
 
-  const sparklineData: PricePoint[] = priceHistory?.map((price: { price: string; capturedAt: string }) => ({
+  const sparklineData: PricePoint[] = priceHistory?.map((price: { price: string; capturedAt: string; unit?: string; storeName?: string }) => ({
     date: new Date(price.capturedAt).toLocaleDateString(),
     price: parseFloat(price.price),
-    capturedAt: price.capturedAt
+    capturedAt: price.capturedAt,
+    unit: price.unit,
+    storeName: price.storeName,
   })) || [];
 
   const getTrend = () => {
@@ -122,7 +126,23 @@ export default function PriceSparkline({
 
   const minPrice = Math.min(...sparklineData.map(d => d.price));
   const maxPrice = Math.max(...sparklineData.map(d => d.price));
-  const latestPrice = sparklineData[sparklineData.length - 1]?.price || currentPrice;
+  const latest = sparklineData[sparklineData.length - 1];
+  const latestPrice = latest?.price || currentPrice;
+  const latestUnit = latest?.unit;
+  const latestStore = latest?.storeName || storeName;
+
+  // Format unit for display (e.g., "16 oz" -> "/16oz", "1 lb" -> "/lb")
+  function formatUnit(unit?: string): string {
+    if (!unit) return "";
+    const cleaned = unit.replace(/^1\s+/, "").trim();
+    return `/${cleaned}`;
+  }
+
+  // Extract short store name (e.g., "Kroger — 94102" -> "Kroger")
+  function shortStoreName(name?: string): string {
+    if (!name) return "";
+    return name.replace(/\s*[—–-]\s*.+$/, "").trim();
+  }
 
   return (
     <div className={`flex flex-col space-y-2 ${className}`} data-testid={`price-sparkline-${itemId}`}>
@@ -132,22 +152,23 @@ export default function PriceSparkline({
         <div className="w-16 h-8">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={sparklineData}>
-              <Line 
-                type="monotone" 
-                dataKey="price" 
+              <Line
+                type="monotone"
+                dataKey="price"
                 stroke={trend?.direction === 'up' ? '#ef4444' : trend?.direction === 'down' ? '#22c55e' : '#6b7280'}
                 strokeWidth={1.5}
                 dot={false}
                 activeDot={{ r: 2, stroke: 'currentColor', strokeWidth: 1 }}
               />
-              <Tooltip 
-                content={({ active, payload, label }) => {
+              <Tooltip
+                content={({ active, payload }) => {
                   if (active && payload && payload.length) {
+                    const point = payload[0].payload as PricePoint;
                     return (
                       <div className="bg-popover border border-border rounded px-2 py-1 shadow-md">
-                        <p className="text-xs font-medium">${Number(payload[0].value).toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">{label}</p>
-                        {storeName && <p className="text-xs text-muted-foreground">{storeName}</p>}
+                        <p className="text-xs font-medium">${Number(payload[0].value).toFixed(2)}{formatUnit(point.unit)}</p>
+                        <p className="text-xs text-muted-foreground">{point.date}</p>
+                        {point.storeName && <p className="text-xs text-muted-foreground">{shortStoreName(point.storeName)}</p>}
                       </div>
                     );
                   }
@@ -162,7 +183,7 @@ export default function PriceSparkline({
         <div className="flex flex-col items-start">
           <div className="flex items-center space-x-1">
             <span className="text-sm font-medium" data-testid={`current-price-${itemId}`}>
-              ${latestPrice?.toFixed(2)}
+              ${latestPrice?.toFixed(2)}{formatUnit(latestUnit)}
             </span>
             {trend && (
               <div className="flex items-center">
@@ -172,9 +193,13 @@ export default function PriceSparkline({
               </div>
             )}
           </div>
-          
+
+          {latestStore && (
+            <span className="text-xs text-muted-foreground leading-tight">{shortStoreName(latestStore)}</span>
+          )}
+
           {trend && trend.change > 0.01 && (
-            <Badge 
+            <Badge
               variant={trend.direction === 'up' ? 'destructive' : 'default'}
               className="text-xs px-1 py-0 h-4"
               data-testid={`trend-badge-${itemId}`}

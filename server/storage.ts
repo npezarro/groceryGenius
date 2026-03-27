@@ -146,7 +146,7 @@ export class DatabaseStorage {
     return await db.select().from(prices).where(and(...conditions)).orderBy(desc(prices.capturedAt));
   }
 
-  async getPriceHistory(itemId: string, storeId?: string, daysBack: number = 30): Promise<Price[]> {
+  async getPriceHistory(itemId: string, storeId?: string, daysBack: number = 30) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysBack);
     const baseCondition = and(
@@ -154,7 +154,19 @@ export class DatabaseStorage {
       sql`${prices.capturedAt} >= ${cutoffDate}`
     );
     const condition = storeId ? and(baseCondition, eq(prices.storeId, storeId)) : baseCondition;
-    return await db.select().from(prices).where(condition).orderBy(prices.capturedAt);
+    return await db.select({
+      id: prices.id, itemId: prices.itemId, storeId: prices.storeId,
+      priceType: prices.priceType, price: prices.price, quantity: prices.quantity,
+      unit: prices.unit, capturedAt: prices.capturedAt, notes: prices.notes,
+      isPromotion: prices.isPromotion, originalPrice: prices.originalPrice,
+      promotionText: prices.promotionText, memberPrice: prices.memberPrice,
+      loyaltyRequired: prices.loyaltyRequired,
+      storeName: stores.name,
+    })
+      .from(prices)
+      .innerJoin(stores, eq(prices.storeId, stores.id))
+      .where(condition)
+      .orderBy(prices.capturedAt);
   }
 
   async getPriceHistoryForMultipleItems(itemIds: string[], daysBack: number = 30) {
