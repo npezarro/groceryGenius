@@ -16,6 +16,24 @@ import { scrapeRuns } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { storage } from "../storage";
 
+/** Geocode a zip code using Nominatim (free, no API key) */
+async function geocodeZip(zipCode: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?postalcode=${zipCode}&country=US&format=json&limit=1`,
+      { headers: { "User-Agent": "GroceryGenius/1.0" } }
+    );
+    if (!response.ok) return null;
+    const data = await response.json() as Array<{ lat: string; lon: string }>;
+    if (data.length > 0) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
+  } catch (err) {
+    console.warn("[pipeline] Geocode failed for zip", zipCode, err);
+  }
+  return null;
+}
+
 /** All registered adapters */
 const adapters: SourceAdapter[] = [
   new BLSAdapter(),
@@ -91,12 +109,26 @@ export async function runAdapter(
       const existing = allStores.find(s => s.name.toLowerCase().includes(storeName.toLowerCase()));
       if (existing) {
         dbStoreId = existing.id;
+        // Backfill coordinates if missing
+        if (!existing.lat || !existing.lng) {
+          const coords = await geocodeZip(zipCode);
+          if (coords) {
+            await storage.updateStoreCoordinates(existing.id, coords.lat, coords.lng);
+            console.log(`[pipeline] Geocoded existing store "${existing.name}" to ${coords.lat}, ${coords.lng}`);
+          }
+        }
       } else {
+        const coords = await geocodeZip(zipCode);
         const newStore = await storage.createStore({
           name: `${storeName} — ${zipCode}`,
           address: `${zipCode} area`,
+          lat: coords?.lat ?? null,
+          lng: coords?.lng ?? null,
         });
         dbStoreId = newStore.id;
+        if (coords) {
+          console.log(`[pipeline] Created store "${newStore.name}" at ${coords.lat}, ${coords.lng}`);
+        }
       }
     }
 
