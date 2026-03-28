@@ -31,6 +31,13 @@ export interface RawProduct {
   sourceProductId?: string;
 }
 
+export interface StoreDetails {
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
+
 export interface SourceAdapter {
   /** Unique identifier for this source (e.g. "kroger", "traderjoes") */
   readonly sourceId: string;
@@ -40,6 +47,8 @@ export interface SourceAdapter {
   fetchProducts(storeId: string, zipCode: string): Promise<RawProduct[]>;
   /** Whether this adapter is configured and ready to use */
   isConfigured(): boolean;
+  /** Resolve actual store details for a zip code (optional — used for store creation) */
+  resolveStoreDetails?(zipCode: string): Promise<StoreDetails | null>;
 }
 
 export interface ScrapeRun {
