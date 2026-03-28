@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { X, Upload, Plus, List, TrendingUp, GripVertical, Check, Trash2 } from "lucide-react";
+import { X, Upload, Plus, List, TrendingUp, GripVertical, Check, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { ShoppingListItem } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
 import { matchItemId, parseCsvItems, parseBulkItems } from "@/lib/shopping-utils";
 
 const PriceSparkline = lazy(() => import("./price-sparkline"));
+const PriceComparison = lazy(() => import("./price-comparison"));
 
 interface ShoppingListProps {
   items: ShoppingListItem[];
@@ -34,6 +35,7 @@ function DraggableItem({
 }) {
   const controls = useDragControls();
   const isChecked = item.checked ?? false;
+  const [showComparison, setShowComparison] = useState(false);
 
   return (
     <Reorder.Item
@@ -87,22 +89,36 @@ function DraggableItem({
       </div>
 
       {!isChecked && itemId ? (
-        <div className="flex items-center space-x-2">
-          <TrendingUp size={12} className="text-muted-foreground" />
-          <Suspense fallback={
-            <div className="flex items-center space-x-2 flex-1">
-              <Skeleton className="w-16 h-8 rounded" />
-              <Skeleton className="w-12 h-4 rounded" />
-            </div>
-          }>
-            <PriceSparkline
-              itemId={itemId}
-              itemName={item.name}
-              className="flex-1"
-              userHasMembership={userHasMembership}
-            />
-          </Suspense>
-        </div>
+        <>
+          <div className="flex items-center space-x-2">
+            <TrendingUp size={12} className="text-muted-foreground" />
+            <Suspense fallback={
+              <div className="flex items-center space-x-2 flex-1">
+                <Skeleton className="w-16 h-8 rounded" />
+                <Skeleton className="w-12 h-4 rounded" />
+              </div>
+            }>
+              <PriceSparkline
+                itemId={itemId}
+                itemName={item.name}
+                className="flex-1"
+                userHasMembership={userHasMembership}
+              />
+            </Suspense>
+          </div>
+          <button
+            onClick={() => setShowComparison(!showComparison)}
+            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 mt-1 transition-colors"
+          >
+            {showComparison ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            Compare prices
+          </button>
+          {showComparison && (
+            <Suspense fallback={<Skeleton className="h-20 w-full mt-1" />}>
+              <PriceComparison itemId={itemId} itemName={item.name} />
+            </Suspense>
+          )}
+        </>
       ) : !isChecked ? (
         <div className="text-xs text-muted-foreground flex items-center">
           <TrendingUp size={12} className="mr-1 opacity-50" />
