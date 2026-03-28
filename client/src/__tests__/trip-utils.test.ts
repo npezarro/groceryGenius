@@ -11,8 +11,8 @@ function makePlan(overrides: Partial<TripPlan> = {}): TripPlan {
   return {
     stores: [
       {
-        store: { id: "s1", name: "Store A", address: "123 Main", lat: 49.28, lng: -123.12 },
-        items: [{ id: "i1", name: "Milk" }],
+        store: { id: "s1", name: "Store A", address: "123 Main St", lat: 49.28, lng: -123.12 },
+        items: [{ itemId: "i1", itemName: "Milk", price: 4.99, unit: "gal" }],
         subtotal: 5.0,
       },
     ],
@@ -120,33 +120,45 @@ describe("generateGoogleMapsLink", () => {
     expect(generateGoogleMapsLink(makePlan(), undefined)).toBe("#");
   });
 
-  it("generates correct URL with origin and waypoints", () => {
+  it("uses store address for waypoints when available", () => {
     const plan = makePlan();
     const url = generateGoogleMapsLink(plan, coords);
-    expect(url).toBe("https://www.google.com/maps/dir/49.28,-123.12/49.28,-123.12");
+    expect(url).toContain("49.28,-123.12"); // origin coords
+    expect(url).toContain(encodeURIComponent("123 Main St")); // store address
+  });
+
+  it("falls back to coordinates when address is a zip placeholder", () => {
+    const plan = makePlan({
+      stores: [
+        { store: { id: "s1", name: "Kroger", address: "94102 area", lat: 37.77, lng: -122.42 }, items: [], subtotal: 0 },
+      ],
+    });
+    const url = generateGoogleMapsLink(plan, coords);
+    expect(url).toContain("37.77,-122.42");
   });
 
   it("joins multiple store waypoints with /", () => {
     const plan = makePlan({
       stores: [
-        { store: { id: "s1", name: "A", address: "a", lat: 49.1, lng: -123.1 }, items: [], subtotal: 0 },
-        { store: { id: "s2", name: "B", address: "b", lat: 49.2, lng: -123.2 }, items: [], subtotal: 0 },
+        { store: { id: "s1", name: "A", address: "100 First Ave", lat: 49.1, lng: -123.1 }, items: [], subtotal: 0 },
+        { store: { id: "s2", name: "B", address: "200 Second Ave", lat: 49.2, lng: -123.2 }, items: [], subtotal: 0 },
       ],
     });
     const url = generateGoogleMapsLink(plan, coords);
-    expect(url).toContain("49.1,-123.1/49.2,-123.2");
+    expect(url).toContain(encodeURIComponent("100 First Ave"));
+    expect(url).toContain(encodeURIComponent("200 Second Ave"));
   });
 
-  it("filters out stores without coordinates", () => {
+  it("does not produce undefined in URL for stores without coordinates or address", () => {
     const plan = makePlan({
       stores: [
-        { store: { id: "s1", name: "A", address: "a", lat: 49.1, lng: -123.1 }, items: [], subtotal: 0 },
-        { store: { id: "s2", name: "B", address: "b" }, items: [], subtotal: 0 },
+        { store: { id: "s1", name: "Mystery Store", address: "94102 area" }, items: [], subtotal: 0 },
       ],
     });
     const url = generateGoogleMapsLink(plan, coords);
     expect(url).not.toContain("undefined");
-    expect(url).toContain("49.1,-123.1");
+    // Falls back to store name search
+    expect(url).toContain(encodeURIComponent("Mystery Store"));
   });
 });
 
@@ -157,27 +169,25 @@ describe("generateAppleMapsLink", () => {
     expect(generateAppleMapsLink(makePlan(), null)).toBe("#");
   });
 
-  it("returns # when no stores have coordinates", () => {
-    const plan = makePlan({
-      stores: [{ store: { id: "s1", name: "A", address: "a" }, items: [], subtotal: 0 }],
-    });
+  it("returns # when no stores", () => {
+    const plan = makePlan({ stores: [] });
     expect(generateAppleMapsLink(plan, coords)).toBe("#");
   });
 
-  it("generates correct URL with saddr and daddr", () => {
+  it("uses store address for destination", () => {
     const plan = makePlan();
     const url = generateAppleMapsLink(plan, coords);
-    expect(url).toBe("http://maps.apple.com/?saddr=49.28,-123.12&daddr=49.28,-123.12");
+    expect(url).toContain("saddr=49.28,-123.12");
+    expect(url).toContain("daddr=" + encodeURIComponent("123 Main St"));
   });
 
-  it("routes to first store with coordinates", () => {
+  it("falls back to coordinates for zip placeholder address", () => {
     const plan = makePlan({
       stores: [
-        { store: { id: "s1", name: "A", address: "a" }, items: [], subtotal: 0 },
-        { store: { id: "s2", name: "B", address: "b", lat: 49.5, lng: -123.5 }, items: [], subtotal: 0 },
+        { store: { id: "s1", name: "Kroger", address: "94102 area", lat: 37.77, lng: -122.42 }, items: [], subtotal: 0 },
       ],
     });
     const url = generateAppleMapsLink(plan, coords);
-    expect(url).toContain("daddr=49.5,-123.5");
+    expect(url).toContain("daddr=37.77,-122.42");
   });
 });

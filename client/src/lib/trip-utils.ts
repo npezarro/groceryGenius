@@ -25,15 +25,23 @@ export function formatTripTime(minutes: number): string {
   return `${hours}h ${mins}m`;
 }
 
+function storeMapQuery(store: { address: string; lat?: number; lng?: number; name: string }): string {
+  // Prefer actual address over coordinates if address looks real (not just "94102 area")
+  if (store.address && !store.address.match(/^\d{5}\s*area$/i)) {
+    return encodeURIComponent(store.address);
+  }
+  if (store.lat && store.lng) {
+    return `${store.lat},${store.lng}`;
+  }
+  // Last resort: search by store name
+  return encodeURIComponent(store.name);
+}
+
 export function generateGoogleMapsLink(plan: TripPlan, userCoordinates: LocationCoordinates | null | undefined): string {
   if (!userCoordinates) return "#";
 
-  const waypoints = plan.stores
-    .filter(s => s.store.lat && s.store.lng)
-    .map(s => `${s.store.lat},${s.store.lng}`)
-    .join('/');
-
   const origin = `${userCoordinates.lat},${userCoordinates.lng}`;
+  const waypoints = plan.stores.map(s => storeMapQuery(s.store)).join('/');
 
   return `https://www.google.com/maps/dir/${origin}/${waypoints}`;
 }
@@ -41,8 +49,9 @@ export function generateGoogleMapsLink(plan: TripPlan, userCoordinates: Location
 export function generateAppleMapsLink(plan: TripPlan, userCoordinates: LocationCoordinates | null | undefined): string {
   if (!userCoordinates) return "#";
 
-  const firstStore = plan.stores.find(s => s.store.lat && s.store.lng);
+  const firstStore = plan.stores[0];
   if (!firstStore) return "#";
 
-  return `http://maps.apple.com/?saddr=${userCoordinates.lat},${userCoordinates.lng}&daddr=${firstStore.store.lat},${firstStore.store.lng}`;
+  const dest = storeMapQuery(firstStore.store);
+  return `http://maps.apple.com/?saddr=${userCoordinates.lat},${userCoordinates.lng}&daddr=${dest}`;
 }
