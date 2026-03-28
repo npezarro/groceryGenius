@@ -12,7 +12,7 @@ import { SafewayAdapter } from "./adapters/safeway";
 import { WholeFoodsAdapter } from "./adapters/wholefoodsmarket";
 import { BLSAdapter } from "./adapters/bls";
 import { db } from "../db";
-import { scrapeRuns } from "@shared/schema";
+import { scrapeRuns, stores } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { storage } from "../storage";
 
@@ -103,32 +103,46 @@ export async function runAdapter(
     // 3. Ensure the store exists in our DB
     let dbStoreId = storeId;
     if (storeId === "auto") {
-      // Find or create store by source name
       const storeName = SOURCE_STORE_NAMES[sourceId] || adapter.sourceName;
       const allStores = await storage.getAllStores();
       const existing = allStores.find(s => s.name.toLowerCase().includes(storeName.toLowerCase()));
+
+      // Try to get real store details from the adapter (e.g., Kroger Locations API)
+      const storeDetails = adapter.resolveStoreDetails
+        ? await adapter.resolveStoreDetails(zipCode).catch(() => null)
+        : null;
+
       if (existing) {
         dbStoreId = existing.id;
-        // Backfill coordinates if missing
-        if (!existing.lat || !existing.lng) {
-          const coords = await geocodeZip(zipCode);
+        // Backfill address/coordinates if still placeholder
+        if (!existing.lat || !existing.lng || existing.address === `${zipCode} area`) {
+          const coords = storeDetails || await geocodeZip(zipCode);
           if (coords) {
             await storage.updateStoreCoordinates(existing.id, coords.lat, coords.lng);
-            console.log(`[pipeline] Geocoded existing store "${existing.name}" to ${coords.lat}, ${coords.lng}`);
+          }
+          // Update name and address if we got real details
+          if (storeDetails) {
+            await db.update(stores)
+              .set({
+                name: storeDetails.name,
+                address: storeDetails.address,
+                lat: storeDetails.lat,
+                lng: storeDetails.lng,
+              })
+              .where(eq(stores.id, existing.id));
+            console.log(`[pipeline] Updated store "${existing.name}" → "${storeDetails.name}" at ${storeDetails.address}`);
           }
         }
       } else {
-        const coords = await geocodeZip(zipCode);
+        const coords = storeDetails || await geocodeZip(zipCode);
         const newStore = await storage.createStore({
-          name: `${storeName} — ${zipCode}`,
-          address: `${zipCode} area`,
+          name: storeDetails?.name || `${storeName} — ${zipCode}`,
+          address: storeDetails?.address || `${zipCode} area`,
           lat: coords?.lat ?? null,
           lng: coords?.lng ?? null,
         });
         dbStoreId = newStore.id;
-        if (coords) {
-          console.log(`[pipeline] Created store "${newStore.name}" at ${coords.lat}, ${coords.lng}`);
-        }
+        console.log(`[pipeline] Created store "${newStore.name}" at ${storeDetails?.address || zipCode}`);
       }
     }
 

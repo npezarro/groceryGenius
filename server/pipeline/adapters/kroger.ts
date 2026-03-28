@@ -11,7 +11,7 @@
  * 3. Extract pricing from product data
  */
 
-import type { SourceAdapter, RawProduct } from "../types";
+import type { SourceAdapter, RawProduct, StoreDetails } from "../types";
 
 const TOKEN_URL = "https://api.kroger.com/v1/connect/oauth2/token";
 const PRODUCTS_URL = "https://api.kroger.com/v1/products";
@@ -73,6 +73,19 @@ export class KrogerAdapter implements SourceAdapter {
 
   /** Find the nearest Kroger location to a zip code */
   async findLocation(zipCode: string): Promise<string | null> {
+    const details = await this.findLocationDetails(zipCode);
+    return details?.locationId ?? null;
+  }
+
+  /** Find nearest Kroger location with full details (name, address, coordinates) */
+  async findLocationDetails(zipCode: string): Promise<{
+    locationId: string;
+    chain: string;
+    name: string;
+    address: string;
+    lat: number;
+    lng: number;
+  } | null> {
     const token = await this.getAccessToken();
     const response = await fetch(
       `${LOCATIONS_URL}?filter.zipCode.near=${zipCode}&filter.limit=1`,
@@ -80,8 +93,26 @@ export class KrogerAdapter implements SourceAdapter {
     );
 
     if (!response.ok) return null;
-    const data = await response.json() as { data?: Array<{ locationId: string }> };
-    return data.data?.[0]?.locationId ?? null;
+    const data = await response.json() as {
+      data?: Array<{
+        locationId: string;
+        chain: string;
+        name: string;
+        address: { addressLine1: string; city: string; state: string; zipCode: string };
+        geolocation: { latitude: number; longitude: number };
+      }>;
+    };
+    const loc = data.data?.[0];
+    if (!loc) return null;
+
+    return {
+      locationId: loc.locationId,
+      chain: loc.chain,
+      name: loc.name,
+      address: `${loc.address.addressLine1}, ${loc.address.city}, ${loc.address.state} ${loc.address.zipCode}`,
+      lat: loc.geolocation.latitude,
+      lng: loc.geolocation.longitude,
+    };
   }
 
   async fetchProducts(storeId: string, zipCode: string): Promise<RawProduct[]> {
@@ -151,5 +182,17 @@ export class KrogerAdapter implements SourceAdapter {
     }
 
     return allProducts;
+  }
+
+  async resolveStoreDetails(zipCode: string): Promise<StoreDetails | null> {
+    if (!this.isConfigured()) return null;
+    const details = await this.findLocationDetails(zipCode);
+    if (!details) return null;
+    return {
+      name: details.name,
+      address: details.address,
+      lat: details.lat,
+      lng: details.lng,
+    };
   }
 }
