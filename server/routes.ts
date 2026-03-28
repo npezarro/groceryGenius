@@ -1,8 +1,9 @@
 import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertShoppingListSchema, prices, type Price, type InsertStore, type InsertItem, type InsertPrice } from "@shared/schema";
+import { insertShoppingListSchema, prices, stores, type Price, type InsertStore, type InsertItem, type InsertPrice } from "@shared/schema";
 import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { seedTopUp, type SeedMode } from "./seed";
 import { hashPassword, verifyPassword, requireAuth, validateInput } from "./auth";
@@ -534,6 +535,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Prices endpoint error:", error);
       res.status(500).json({ error: "Failed to fetch prices" });
+    }
+  });
+
+  // Price comparison: latest price per store for a given item
+  router.get("/api/prices/compare/:itemId", async (req: Request, res: Response) => {
+    try {
+      const { itemId } = req.params;
+      // Get the latest price per store for this item
+      const results = await db.select({
+        storeId: prices.storeId,
+        storeName: stores.name,
+        storeAddress: stores.address,
+        price: prices.price,
+        unit: prices.unit,
+        isPromotion: prices.isPromotion,
+        originalPrice: prices.originalPrice,
+        memberPrice: prices.memberPrice,
+        capturedAt: prices.capturedAt,
+      })
+        .from(prices)
+        .innerJoin(stores, eq(prices.storeId, stores.id))
+        .where(eq(prices.itemId, itemId))
+        .orderBy(desc(prices.capturedAt));
+
+      // Deduplicate to latest price per store
+      const latestByStore = new Map<string, typeof results[0]>();
+      for (const r of results) {
+        if (!latestByStore.has(r.storeId)) {
+          latestByStore.set(r.storeId, r);
+        }
+      }
+
+      const comparison = [...latestByStore.values()].sort(
+        (a, b) => parseFloat(a.price) - parseFloat(b.price)
+      );
+      res.json(comparison);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch price comparison" });
     }
   });
 
