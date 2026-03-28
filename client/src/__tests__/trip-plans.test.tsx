@@ -11,8 +11,8 @@ function makePlan(overrides: Partial<TripPlan> = {}): TripPlan {
       {
         store: { id: "s1", name: "Trader Joe's", address: "123 Main St", lat: 49.28, lng: -123.12 },
         items: [
-          { id: "i1", name: "Milk" },
-          { id: "i2", name: "Bread" },
+          { itemId: "i1", itemName: "Milk", price: 4.99, unit: "gal" },
+          { itemId: "i2", itemName: "Bread", price: 3.49, unit: "loaf" },
         ],
         subtotal: 12.5,
       },
@@ -95,8 +95,8 @@ describe("TripPlans component", () => {
   it("labels multi-store combo correctly", () => {
     const plan = makePlan({
       stores: [
-        { store: { id: "s1", name: "Store A", address: "a", lat: 49.1, lng: -123.1 }, items: [{ id: "i1", name: "Milk" }], subtotal: 5 },
-        { store: { id: "s2", name: "Store B", address: "b", lat: 49.2, lng: -123.2 }, items: [{ id: "i2", name: "Bread" }], subtotal: 7 },
+        { store: { id: "s1", name: "Store A", address: "a", lat: 49.1, lng: -123.1 }, items: [{ itemId: "i1", itemName: "Milk", price: 4.99, unit: "gal" }], subtotal: 5 },
+        { store: { id: "s2", name: "Store B", address: "b", lat: 49.2, lng: -123.2 }, items: [{ itemId: "i2", itemName: "Bread", price: 3.49, unit: "loaf" }], subtotal: 7 },
       ],
     });
     render(<TripPlans {...defaultProps} tripPlans={[plan]} />);
@@ -106,8 +106,10 @@ describe("TripPlans component", () => {
   it("disables map buttons when no coordinates", () => {
     const plan = makePlan();
     render(<TripPlans {...defaultProps} tripPlans={[plan]} userCoordinates={null} />);
-    expect(screen.getByTestId("button-google-maps-0")).toBeDisabled();
-    expect(screen.getByTestId("button-apple-maps-0")).toBeDisabled();
+    const googleBtn = screen.getByRole("button", { name: /google/i });
+    const appleBtn = screen.getByRole("button", { name: /apple/i });
+    expect(googleBtn).toBeDisabled();
+    expect(appleBtn).toBeDisabled();
   });
 
   it("renders multiple plans", () => {
