@@ -4,11 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings, Upload, MapPin, Database, RefreshCw } from "lucide-react";
+import { Settings, Upload, MapPin, Database, RefreshCw, Zap, CheckCircle, XCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DataStats } from "@/lib/types";
 import { apiRequest } from "@/lib/queryClient";
+import { apiUrl } from "@/lib/api";
 import { computeGeocodingProgress } from "@/lib/preference-utils";
+
+interface PipelineSource {
+  sourceId: string;
+  sourceName: string;
+  configured: boolean;
+  stale: boolean;
+}
 
 export default function AdminPanel() {
   const { toast } = useToast();
@@ -111,6 +119,37 @@ export default function AdminPanel() {
     },
   });
 
+  // Pipeline status
+  const { data: pipelineData } = useQuery<{ sources: PipelineSource[]; scheduler: { running: boolean } }>({
+    queryKey: ['/api/pipeline/sources'],
+    queryFn: async () => {
+      const res = await fetch(apiUrl('/api/pipeline/sources'));
+      if (!res.ok) return { sources: [], scheduler: { running: false } };
+      return res.json();
+    },
+    refetchInterval: 30000,
+  });
+
+  const runPipelineMutation = useMutation({
+    mutationFn: async (sourceId: string | undefined = undefined) => {
+      const url = sourceId
+        ? `/api/pipeline/run/${sourceId}?zipCode=94102`
+        : '/api/pipeline/run?zipCode=94102';
+      const response = await apiRequest('POST', url);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      const result = data.results ? data.results : [data];
+      const totalPrices = result.reduce((sum: number, r: { pricesCreated?: number }) => sum + (r.pricesCreated || 0), 0);
+      toast({ title: "Pipeline complete", description: `Ingested ${totalPrices} prices` });
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/pipeline/sources'] });
+    },
+    onError: (error) => {
+      toast({ title: "Pipeline failed", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleFileImport = async (file: File, mutation: { mutate: (data: string) => void }) => {
     if (!file) return;
     
@@ -138,6 +177,54 @@ export default function AdminPanel() {
           <Settings className="text-primary mr-2" size={20} />
           Admin Panel
         </h2>
+
+        {/* Pipeline Status */}
+        {pipelineData && pipelineData.sources.length > 0 && (
+          <div className="mb-4 p-4 border border-border rounded-lg">
+            <h3 className="font-medium mb-3 flex items-center">
+              <Zap className="text-amber-500 mr-2" size={16} />
+              Price Pipeline
+            </h3>
+            <div className="space-y-2">
+              {pipelineData.sources.map(src => (
+                <div key={src.sourceId} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    {src.configured ? (
+                      src.stale ? (
+                        <Clock size={14} className="text-amber-500" />
+                      ) : (
+                        <CheckCircle size={14} className="text-green-500" />
+                      )
+                    ) : (
+                      <XCircle size={14} className="text-muted-foreground" />
+                    )}
+                    <span className={src.configured ? "" : "text-muted-foreground"}>{src.sourceName}</span>
+                  </div>
+                  {src.configured && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs"
+                      onClick={() => runPipelineMutation.mutate(src.sourceId)}
+                      disabled={runPipelineMutation.isPending}
+                    >
+                      Run
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <Button
+              size="sm"
+              className="w-full mt-3"
+              onClick={() => runPipelineMutation.mutate(undefined)}
+              disabled={runPipelineMutation.isPending}
+            >
+              <RefreshCw size={14} className={`mr-1 ${runPipelineMutation.isPending ? 'animate-spin' : ''}`} />
+              {runPipelineMutation.isPending ? "Running..." : "Run All Sources"}
+            </Button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* CSV Import Section */}
