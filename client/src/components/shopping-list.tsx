@@ -132,6 +132,7 @@ function DraggableItem({
 export default function ShoppingList({ items, onItemsChange, userHasMembership = false }: ShoppingListProps) {
   const [newItemName, setNewItemName] = useState("");
   const [bulkItems, setBulkItems] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Fetch items from database to get IDs for price history
   const { data: dbItems } = useQuery({
@@ -226,27 +227,72 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
           </div>
         </div>
 
-        {/* Item Input */}
+        {/* Item Input with Autocomplete */}
         <div className="mb-4">
           <div className="relative">
             <Input
               type="text"
               placeholder="Add item (e.g., organic bananas, milk...)"
               value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addItem()}
+              onChange={(e) => {
+                setNewItemName(e.target.value);
+                setShowSuggestions(e.target.value.length >= 2);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { addItem(); setShowSuggestions(false); }
+                if (e.key === 'Escape') setShowSuggestions(false);
+              }}
+              onFocus={() => setShowSuggestions(newItemName.length >= 2)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               className="pr-10"
               data-testid="input-new-item"
+              autoComplete="off"
             />
             <Button
               size="sm"
-              onClick={addItem}
+              onClick={() => { addItem(); setShowSuggestions(false); }}
               className="absolute right-2 top-2 h-6 w-6 p-0"
               aria-label="Add item"
               data-testid="button-add-item"
             >
               <Plus size={14} />
             </Button>
+
+            {/* Autocomplete suggestions */}
+            {showSuggestions && newItemName.length >= 2 && dbItems && (() => {
+              const query = newItemName.toLowerCase();
+              const suggestions = (dbItems as Array<{ id: string; name: string }>)
+                .filter(item =>
+                  item.name.toLowerCase().includes(query) &&
+                  !items.some(existing => existing.name.toLowerCase() === item.name.toLowerCase())
+                )
+                .slice(0, 8);
+
+              if (suggestions.length === 0) return null;
+
+              return (
+                <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {suggestions.map(suggestion => (
+                    <button
+                      key={suggestion.id}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-lg last:rounded-b-lg"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        const newItem: ShoppingListItem = {
+                          id: Date.now().toString(),
+                          name: suggestion.name,
+                        };
+                        onItemsChange([...items, newItem]);
+                        setNewItemName("");
+                        setShowSuggestions(false);
+                      }}
+                    >
+                      {suggestion.name}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
