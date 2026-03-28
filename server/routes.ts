@@ -176,6 +176,7 @@ async function generateTripPlans(
     const storeData = planStores.map(store => ({
       store,
       items: [] as typeof matchedItems,
+      itemPrices: [] as Array<{ itemId: string; itemName: string; price: number; unit: string | null; quantity: string | null }>,
       subtotal: 0,
       prices: pricesByStore.get(store.id) || [],
       coveredItems: itemsByStore.get(store.id) || new Set<string>()
@@ -187,6 +188,7 @@ async function generateTripPlans(
     for (const item of matchedItems) {
       let bestPrice = Infinity;
       let bestStoreIdx = -1;
+      let bestPriceRecord: typeof allPrices[0] | null = null;
 
       for (let i = 0; i < storeData.length; i++) {
         const sp = storeData[i].prices.find(p => p.itemId === item!.id);
@@ -195,12 +197,20 @@ async function generateTripPlans(
           if (ep < bestPrice) {
             bestPrice = ep;
             bestStoreIdx = i;
+            bestPriceRecord = sp;
           }
         }
       }
 
-      if (bestStoreIdx >= 0) {
+      if (bestStoreIdx >= 0 && bestPriceRecord) {
         storeData[bestStoreIdx].items.push(item);
+        storeData[bestStoreIdx].itemPrices.push({
+          itemId: item!.id,
+          itemName: item!.name,
+          price: bestPrice,
+          unit: bestPriceRecord.unit,
+          quantity: bestPriceRecord.quantity,
+        });
         storeData[bestStoreIdx].subtotal += bestPrice;
         totalCost += bestPrice;
         coveredCount++;
@@ -226,7 +236,11 @@ async function generateTripPlans(
     // Filter out stores with no items assigned (can happen in combos)
     const activeStores = storeData
       .filter(sd => sd.items.length > 0)
-      .map(sd => ({ store: sd.store, items: sd.items, subtotal: sd.subtotal }));
+      .map(sd => ({
+        store: { id: sd.store.id, name: sd.store.name, address: sd.store.address, lat: sd.store.lat, lng: sd.store.lng },
+        items: sd.itemPrices,
+        subtotal: sd.subtotal,
+      }));
 
     return { stores: activeStores, totalCost, totalTime, totalDistance, score: 0, coverage };
   }

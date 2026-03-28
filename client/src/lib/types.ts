@@ -26,6 +26,14 @@ export interface TripWeights {
   distance: number;
 }
 
+export interface TripPlanItem {
+  itemId: string;
+  itemName: string;
+  price: number;
+  unit?: string | null;
+  quantity?: string | null;
+}
+
 export interface TripPlanStore {
   store: {
     id: string;
@@ -34,10 +42,7 @@ export interface TripPlanStore {
     lat?: number;
     lng?: number;
   };
-  items: Array<{
-    id: string;
-    name: string;
-  }>;
+  items: TripPlanItem[];
   subtotal: number;
 }
 
