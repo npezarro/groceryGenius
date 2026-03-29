@@ -681,6 +681,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // CSV import endpoints
   router.post("/api/import/stores", async (req: Request, res: Response) => {
+    if (!isAuthorized(req)) {
+      return res.status(403).json({ error: "Forbidden: valid ADMIN_KEY required" });
+    }
     try {
       const { csvData } = req.body;
       if (!csvData) {
@@ -688,6 +691,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const rows = parseCSV(csvData);
+      if (rows.length === 0) {
+        return res.status(400).json({ error: "CSV data is empty" });
+      }
       const headers = rows[0];
       const dataRows = rows.slice(1);
 
@@ -732,6 +738,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   router.post("/api/import/items", async (req: Request, res: Response) => {
+    if (!isAuthorized(req)) {
+      return res.status(403).json({ error: "Forbidden: valid ADMIN_KEY required" });
+    }
     try {
       const { csvData } = req.body;
       if (!csvData) {
@@ -739,6 +748,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const rows = parseCSV(csvData);
+      if (rows.length === 0) {
+        return res.status(400).json({ error: "CSV data is empty" });
+      }
       const headers = rows[0];
       const dataRows = rows.slice(1);
 
@@ -776,6 +788,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   router.post("/api/import/prices", async (req: Request, res: Response) => {
+    if (!isAuthorized(req)) {
+      return res.status(403).json({ error: "Forbidden: valid ADMIN_KEY required" });
+    }
     try {
       const { csvData } = req.body;
       if (!csvData) {
@@ -783,6 +798,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const rows = parseCSV(csvData);
+      if (rows.length === 0) {
+        return res.status(400).json({ error: "CSV data is empty" });
+      }
       const headers = rows[0];
       const dataRows = rows.slice(1);
 
@@ -827,6 +845,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Geocode stores endpoint
   router.post("/api/geocode-stores", async (req: Request, res: Response) => {
+    if (!isAuthorized(req)) {
+      return res.status(403).json({ error: "Forbidden: valid ADMIN_KEY required" });
+    }
     try {
       const stores = await storage.getAllStores();
       const storesWithoutCoords = stores.filter(store => !store.lat || !store.lng);
