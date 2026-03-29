@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 /**
  * Tests for the trip planning logic.
@@ -17,7 +17,7 @@ vi.mock("../storage", () => ({
   },
 }));
 
-import { storage } from "../storage";
+import { storage as _storage } from "../storage";
 
 // Import the route module to get access to generateTripPlans
 // Since it's not exported, we'll test the core logic patterns directly
