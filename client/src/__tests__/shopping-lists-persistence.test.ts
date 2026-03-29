@@ -102,7 +102,7 @@ describe("Shopping List — Guest to Auth Migration", () => {
   });
 
   it("empty guest items produce no merge", () => {
-    const existingItems: ShoppingListItem[] = [{ id: "1", name: "Milk" }];
+    const _existingItems: ShoppingListItem[] = [{ id: "1", name: "Milk" }];
     const guestItems: ShoppingListItem[] = [];
     const hasGuestItems = guestItems.length > 0;
     expect(hasGuestItems).toBe(false);
