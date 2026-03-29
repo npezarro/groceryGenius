@@ -30,6 +30,20 @@ export default tseslint.config(
       ],
     },
   },
+  // shadcn/ui components export variant helpers alongside components
+  {
+    files: ["client/src/components/ui/**/*.{ts,tsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
+  // Hook files export both providers and hooks
+  {
+    files: ["client/src/hooks/**/*.{ts,tsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
   // Server-specific config (Node)
   {
     files: ["server/**/*.ts"],

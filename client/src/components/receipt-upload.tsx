@@ -35,7 +35,7 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
   const [showForm, setShowForm] = useState(false);
   const [ocrStatus, setOcrStatus] = useState<OcrStatus>("idle");
   const [ocrProgress, setOcrProgress] = useState(0);
-  const [rawOcrText, setRawOcrText] = useState("");
+  const [_rawOcrText, setRawOcrText] = useState("");
 
   const { data: myReceipts = [] } = useQuery<Array<{ id: string; storeName?: string; status: string; uploadedAt: string; parsedItems?: ParsedReceiptItem[] }>>({
     queryKey: ["/api/user/receipts"],
