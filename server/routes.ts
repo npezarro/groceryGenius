@@ -1,7 +1,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertShoppingListSchema, prices, stores, type Price, type InsertStore, type InsertItem, type InsertPrice } from "@shared/schema";
+import { prices, stores, type Price, type InsertStore, type InsertItem, type InsertPrice } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
@@ -571,7 +571,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (a, b) => parseFloat(a.price) - parseFloat(b.price)
       );
       res.json(comparison);
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: "Failed to fetch price comparison" });
     }
   });
