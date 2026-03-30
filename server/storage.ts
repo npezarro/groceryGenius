@@ -325,7 +325,7 @@ export class DatabaseStorage {
     return receipt || undefined;
   }
 
-  async updateReceipt(id: string, userId: string, data: Partial<InsertReceipt>): Promise<Receipt> {
+  async updateReceipt(id: string, userId: string, data: Partial<InsertReceipt>): Promise<Receipt | undefined> {
     const [updated] = await db.update(receipts)
       .set(data)
       .where(and(eq(receipts.id, id), eq(receipts.userId, userId)))

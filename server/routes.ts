@@ -85,27 +85,33 @@ function parseCSV(csvText: string): string[][] {
 // Helper function to calculate effective price considering promotions and member pricing
 function calculateEffectivePrice(price: Price, userHasMembership: boolean = false): number {
   const now = new Date();
-  
+
   // Start with original price or current price as fallback
   let effectivePrice = parseFloat(price.originalPrice || price.price);
   const currentPrice = parseFloat(price.price);
-  
+
+  // Guard against non-numeric price strings
+  if (isNaN(currentPrice)) return 0;
+  if (isNaN(effectivePrice)) effectivePrice = currentPrice;
+
   // Check if promotion is active
-  const isActivePromotion = price.isPromotion && 
+  const isActivePromotion = price.isPromotion &&
     (!price.promotionStartDate || new Date(price.promotionStartDate) <= now) &&
     (!price.promotionEndDate || new Date(price.promotionEndDate) >= now);
-  
+
   // Apply promotional pricing if active
   if (isActivePromotion) {
     effectivePrice = Math.min(effectivePrice, currentPrice);
   }
-  
+
   // Apply member pricing if user has membership and member price exists
   if (userHasMembership && price.memberPrice) {
     const memberPrice = parseFloat(price.memberPrice);
-    effectivePrice = Math.min(effectivePrice, memberPrice);
+    if (!isNaN(memberPrice)) {
+      effectivePrice = Math.min(effectivePrice, memberPrice);
+    }
   }
-  
+
   return effectivePrice;
 }
 
@@ -157,8 +163,9 @@ async function generateTripPlans(
 
   // Helper: calculate distance from user to a store (in miles)
   function distToStore(store: { lat?: number | null; lng?: number | null }) {
+    if (store.lat == null || store.lng == null) return Infinity;
     return Math.sqrt(
-      Math.pow(userLat - store.lat!, 2) + Math.pow(userLng - store.lng!, 2)
+      Math.pow(userLat - store.lat, 2) + Math.pow(userLng - store.lng, 2)
     ) * 69;
   }
 
@@ -167,8 +174,9 @@ async function generateTripPlans(
     a: { lat?: number | null; lng?: number | null },
     b: { lat?: number | null; lng?: number | null }
   ) {
+    if (a.lat == null || a.lng == null || b.lat == null || b.lng == null) return Infinity;
     return Math.sqrt(
-      Math.pow(a.lat! - b.lat!, 2) + Math.pow(a.lng! - b.lng!, 2)
+      Math.pow(a.lat - b.lat, 2) + Math.pow(a.lng - b.lng, 2)
     ) * 69;
   }
 
@@ -436,14 +444,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   router.post("/api/shopping-lists", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { name, items } = req.body;
+      const body = z.object({
+        name: z.string().min(1).max(200).optional(),
+        items: z.array(z.object({
+          name: z.string(),
+          quantity: z.number().optional(),
+          unit: z.string().optional(),
+          checked: z.boolean().optional(),
+        })).optional(),
+      }).parse(req.body);
+
       const shoppingList = await storage.createShoppingList({
-        name: name || "Shopping List",
-        items: items || [],
+        name: body.name || "Shopping List",
+        items: body.items || [],
         userId: req.session.userId!,
       });
       res.json(shoppingList);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
       res.status(400).json({ error: error instanceof Error ? error.message : "Invalid data" });
     }
   });
@@ -568,7 +588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const comparison = [...latestByStore.values()].sort(
-        (a, b) => parseFloat(a.price) - parseFloat(b.price)
+        (a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0)
       );
       res.json(comparison);
     } catch (_error) {
@@ -946,7 +966,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   router.post("/api/auth/logout", (req: Request, res: Response) => {
-    req.session.destroy(() => {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Session destroy error:", err);
+        res.status(500).json({ error: "Logout failed" });
+        return;
+      }
       res.json({ ok: true });
     });
   });
@@ -1112,6 +1137,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         parsedItems: body.parsedItems,
         status: "processed",
       });
+      if (!receipt) {
+        res.status(404).json({ error: "Receipt not found" });
+        return;
+      }
       res.json(receipt);
     } catch (error) {
       if (error instanceof z.ZodError) {

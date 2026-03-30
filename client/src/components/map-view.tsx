@@ -11,12 +11,12 @@ interface MapViewProps {
 
 export default function MapView({ coordinates, stores, radius: _radius }: MapViewProps) {
   const storesWithCoords = stores.filter(store => store.lat && store.lng);
-  const avgDistance = storesWithCoords.length > 0 
+  const avgDistance = storesWithCoords.length > 0
     ? (storesWithCoords.reduce((sum, store) => {
-        if (!coordinates) return sum;
+        if (!coordinates || store.lat == null || store.lng == null) return sum;
         const dist = Math.sqrt(
-          Math.pow(coordinates.lat - store.lat!, 2) +
-          Math.pow(coordinates.lng - store.lng!, 2)
+          Math.pow(coordinates.lat - store.lat, 2) +
+          Math.pow(coordinates.lng - store.lng, 2)
         ) * 69; // Rough conversion to miles
         return sum + dist;
       }, 0) / storesWithCoords.length).toFixed(1)
