@@ -158,4 +158,62 @@ describe("Trip Planning — Distance Calculation", () => {
     const dist = Math.sqrt(Math.pow(0, 2) + Math.pow(0, 2)) * 69;
     expect(dist).toBe(0);
   });
+
+  it("returns Infinity when store coordinates are null", () => {
+    // Matches the defensive guard in distToStore / distBetweenStores
+    function distToStore(store: { lat?: number | null; lng?: number | null }, userLat: number, userLng: number) {
+      if (store.lat == null || store.lng == null) return Infinity;
+      return Math.sqrt(Math.pow(userLat - store.lat, 2) + Math.pow(userLng - store.lng, 2)) * 69;
+    }
+    expect(distToStore({ lat: null, lng: -122.4 }, 37.77, -122.42)).toBe(Infinity);
+    expect(distToStore({ lat: 37.77, lng: null }, 37.77, -122.42)).toBe(Infinity);
+    expect(distToStore({ lat: 37.77, lng: -122.42 }, 37.77, -122.42)).toBe(0);
+  });
+});
+
+describe("Trip Planning — Price NaN Guards", () => {
+  // Mirrors calculateEffectivePrice logic with NaN guards
+  function calculateEffectivePrice(price: string, originalPrice?: string, memberPrice?: string, userHasMembership = false) {
+    let effectivePrice = parseFloat(originalPrice || price);
+    const currentPrice = parseFloat(price);
+    if (isNaN(currentPrice)) return 0;
+    if (isNaN(effectivePrice)) effectivePrice = currentPrice;
+    if (userHasMembership && memberPrice) {
+      const mp = parseFloat(memberPrice);
+      if (!isNaN(mp)) effectivePrice = Math.min(effectivePrice, mp);
+    }
+    return effectivePrice;
+  }
+
+  it("returns 0 for non-numeric price string", () => {
+    expect(calculateEffectivePrice("N/A")).toBe(0);
+    expect(calculateEffectivePrice("free")).toBe(0);
+    expect(calculateEffectivePrice("")).toBe(0);
+  });
+
+  it("falls back to currentPrice when originalPrice is non-numeric", () => {
+    expect(calculateEffectivePrice("3.99", "N/A")).toBe(3.99);
+  });
+
+  it("ignores non-numeric member price", () => {
+    expect(calculateEffectivePrice("5.99", undefined, "invalid", true)).toBe(5.99);
+  });
+
+  it("applies valid member price", () => {
+    expect(calculateEffectivePrice("5.99", undefined, "4.49", true)).toBe(4.49);
+  });
+
+  it("sorts prices with NaN-safe fallback", () => {
+    const prices = [
+      { price: "2.99" },
+      { price: "N/A" },
+      { price: "1.49" },
+    ];
+    const sorted = [...prices].sort(
+      (a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0)
+    );
+    expect(sorted[0].price).toBe("N/A"); // 0 sorts first
+    expect(sorted[1].price).toBe("1.49");
+    expect(sorted[2].price).toBe("2.99");
+  });
 });
