@@ -470,14 +470,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   router.patch("/api/shopping-lists/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { name, items } = req.body;
-      const updated = await storage.updateShoppingList(req.params.id, req.session.userId!, { name, items });
+      const body = z.object({
+        name: z.string().min(1).max(200).optional(),
+        items: z.array(z.object({
+          name: z.string().min(1),
+          quantity: z.number().optional(),
+          unit: z.string().optional(),
+          checked: z.boolean().optional(),
+        })).max(500).optional(),
+      }).parse(req.body);
+
+      const updated = await storage.updateShoppingList(req.params.id, req.session.userId!, body);
       if (!updated) {
         res.status(404).json({ error: "List not found" });
         return;
       }
       res.json(updated);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
       res.status(400).json({ error: error instanceof Error ? error.message : "Invalid data" });
     }
   });
@@ -602,7 +614,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { itemId } = req.params;
       const { storeId, days } = req.query;
       
-      const daysBack = days ? parseInt(days as string) : 30;
+      const parsedDays = days ? parseInt(days as string, 10) : 30;
+      const daysBack = isNaN(parsedDays) || parsedDays < 1 ? 30 : Math.min(parsedDays, 365);
       const history = await storage.getPriceHistory(itemId, storeId as string, daysBack);
       
       res.json(history);
@@ -620,7 +633,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const itemIdArray = (itemIds as string).split(',');
-      const daysBack = days ? parseInt(days as string) : 30;
+      const parsedDays = days ? parseInt(days as string, 10) : 30;
+      const daysBack = isNaN(parsedDays) || parsedDays < 1 ? 30 : Math.min(parsedDays, 365);
       
       const history = await storage.getPriceHistoryForMultipleItems(itemIdArray, daysBack);
       res.json(history);
@@ -1071,7 +1085,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const body = z.object({
         storeId: z.string().optional(),
         storeName: z.string().optional(),
-        imageData: z.string().optional(), // base64 image
+        imageData: z.string().max(5242880).optional(), // base64 image, 5MB limit
         purchaseDate: z.string().optional(),
         totalAmount: z.number().optional(),
         parsedItems: z.array(z.object({
@@ -1079,7 +1093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           price: z.number(),
           quantity: z.number().optional(),
           unit: z.string().optional(),
-        })).optional(),
+        })).max(200).optional(),
       }).parse(req.body);
 
       const receipt = await storage.createReceipt({
@@ -1130,7 +1144,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           price: z.number(),
           quantity: z.number().optional(),
           unit: z.string().optional(),
-        })),
+        })).max(200),
       }).parse(req.body);
 
       const receipt = await storage.updateReceipt(req.params.id, req.session.userId!, {
@@ -1209,7 +1223,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   /** Get recent scrape run history */
   router.get("/api/pipeline/runs", async (req, res) => {
     try {
-      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+      const parsedLimit = parseInt(req.query.limit as string, 10);
+      const limit = Math.min(isNaN(parsedLimit) || parsedLimit < 1 ? 20 : parsedLimit, 100);
       const runs = await getRecentRuns(limit);
       res.json(runs);
     } catch {
@@ -1225,6 +1240,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
       const { zipCode } = req.body || {};
+      if (zipCode && !/^\d{5}(-\d{4})?$/.test(zipCode)) {
+        return res.status(400).json({ error: "Invalid zipCode format (expected 5-digit or ZIP+4)" });
+      }
       const result = await triggerManualRun(zipCode || "94102");
       res.json(result);
     } catch (error) {
@@ -1241,6 +1259,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
       const { zipCode } = req.body || {};
+      if (zipCode && !/^\d{5}(-\d{4})?$/.test(zipCode)) {
+        return res.status(400).json({ error: "Invalid zipCode format (expected 5-digit or ZIP+4)" });
+      }
       const result = await triggerSingleRun(req.params.sourceId, zipCode || "94102");
       res.json(result);
     } catch (error) {
