@@ -18,6 +18,8 @@ import {
   scorePlans,
   rankPlans,
   matchItems,
+  indexPrices,
+  generateCandidatePlans,
 } from "./lib/trip-planner";
 
 // Geocoding — Mapbox primary, Nominatim (OpenStreetMap) fallback
@@ -91,113 +93,17 @@ async function generateTripPlans(
   const storeIds = storesWithCoords.map(store => store.id);
   const allPrices = await storage.getPricesForItems(itemIds, storeIds);
 
-  // Pre-index prices into Maps for O(1) lookups
-  const pricesByStore = new Map<string, typeof allPrices>();
-  const itemsByStore = new Map<string, Set<string>>();
-  for (const store of storesWithCoords) {
-    pricesByStore.set(store.id, []);
-    itemsByStore.set(store.id, new Set());
-  }
-  for (const p of allPrices) {
-    pricesByStore.get(p.storeId)?.push(p);
-    itemsByStore.get(p.storeId)?.add(p.itemId);
-  }
+  // Index prices for O(1) lookups
+  const { pricesByStore, itemsByStore } = indexPrices(storesWithCoords, allPrices);
 
-  // Helper using extracted buildPlan
-  function makePlan(planStores: typeof storesWithCoords) {
-    return buildPlan(planStores, matchedItems, pricesByStore, itemsByStore, userLat, userLng, userHasMembership);
-  }
+  // Build plan helper
+  const makePlan = (planStores: typeof storesWithCoords) =>
+    buildPlan(planStores, matchedItems, pricesByStore, itemsByStore, userLat, userLng, userHasMembership);
 
-  // ── Generate all candidate plans ──
-
-  const candidatePlans: ReturnType<typeof makePlan>[] = [];
-
-  // 1. Single-store plans (include any store with at least 1 item)
-  for (const store of storesWithCoords) {
-    const storeItemSet = itemsByStore.get(store.id);
-    if (!storeItemSet || storeItemSet.size === 0) continue;
-    candidatePlans.push(makePlan([store]));
-  }
-
-  // 2. Multi-store plans via greedy set-cover
-  // Sort stores by coverage (descending) and take top 8 for combo generation
-  const storesByCoverage = [...storesWithCoords]
-    .map(store => ({ store, coverCount: itemsByStore.get(store.id)?.size || 0 }))
-    .filter(s => s.coverCount > 0)
-    .sort((a, b) => b.coverCount - a.coverCount)
-    .slice(0, 8);
-
-  const topStores = storesByCoverage.map(s => s.store);
-  const bestSingleCoverage = storesByCoverage.length > 0 ? storesByCoverage[0].coverCount / matchedItems.length : 0;
-
-  // Generate 2-store combos from top stores
-  for (let i = 0; i < topStores.length; i++) {
-    for (let j = i + 1; j < topStores.length; j++) {
-      const items1 = itemsByStore.get(topStores[i].id) || new Set<string>();
-      const items2 = itemsByStore.get(topStores[j].id) || new Set<string>();
-      const combined = new Set([...items1, ...items2]);
-      // Only include if the combo covers more than the best single store
-      if (combined.size > bestSingleCoverage * matchedItems.length) {
-        candidatePlans.push(makePlan([topStores[i], topStores[j]]));
-      }
-    }
-  }
-
-  // Generate 3-store combos via greedy set-cover from top stores
-  if (matchedItems.length > 1 && topStores.length >= 3) {
-    // Start from each of the top 4 stores as seed, greedily add stores
-    const seeds = topStores.slice(0, Math.min(4, topStores.length));
-    const seen3 = new Set<string>();
-
-    for (const seed of seeds) {
-      const uncovered = new Set(itemIds);
-      const chosen: typeof storesWithCoords = [];
-      const remaining = topStores.filter(s => s.id !== seed.id);
-
-      // Add seed
-      chosen.push(seed);
-      const seedItems = itemsByStore.get(seed.id) || new Set<string>();
-      for (const id of seedItems) uncovered.delete(id);
-
-      // Greedily add up to 2 more stores
-      while (chosen.length < 3 && uncovered.size > 0 && remaining.length > 0) {
-        let bestIdx = -1;
-        let bestCover = 0;
-
-        for (let r = 0; r < remaining.length; r++) {
-          const rItems = itemsByStore.get(remaining[r].id) || new Set<string>();
-          let coverCount = 0;
-          for (const id of uncovered) {
-            if (rItems.has(id)) coverCount++;
-          }
-          if (coverCount > bestCover) {
-            bestCover = coverCount;
-            bestIdx = r;
-          }
-        }
-
-        if (bestIdx < 0 || bestCover === 0) break;
-
-        const nextStore = remaining.splice(bestIdx, 1)[0];
-        chosen.push(nextStore);
-        const nextItems = itemsByStore.get(nextStore.id) || new Set<string>();
-        for (const id of nextItems) uncovered.delete(id);
-      }
-
-      if (chosen.length >= 2) {
-        // Deduplicate by sorted store IDs
-        const key = chosen.map(s => s.id).sort().join(',');
-        if (!seen3.has(key)) {
-          seen3.add(key);
-          candidatePlans.push(makePlan(chosen));
-        }
-      }
-    }
-  }
-
+  // Generate, score, and rank candidate plans
+  const candidatePlans = generateCandidatePlans(storesWithCoords, itemsByStore, matchedItems, itemIds, makePlan);
   if (candidatePlans.length === 0) return [];
 
-  // Score and rank plans
   scorePlans(candidatePlans, weights);
   return rankPlans(candidatePlans);
 }

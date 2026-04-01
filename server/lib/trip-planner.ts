@@ -277,3 +277,138 @@ export function matchItems<T extends { name: string }>(
     return fuzzyMatch;
   }).filter((item): item is T => item != null);
 }
+
+// ── Price indexing ──
+
+/**
+ * Index prices into per-store maps for O(1) lookups.
+ * Returns { pricesByStore, itemsByStore } where:
+ * - pricesByStore: Map<storeId, Price[]>
+ * - itemsByStore: Map<storeId, Set<itemId>>
+ */
+export function indexPrices<P extends { storeId: string; itemId: string }>(
+  stores: Array<{ id: string }>,
+  allPrices: P[],
+): { pricesByStore: Map<string, P[]>; itemsByStore: Map<string, Set<string>> } {
+  const pricesByStore = new Map<string, P[]>();
+  const itemsByStore = new Map<string, Set<string>>();
+  for (const store of stores) {
+    pricesByStore.set(store.id, []);
+    itemsByStore.set(store.id, new Set());
+  }
+  for (const p of allPrices) {
+    pricesByStore.get(p.storeId)?.push(p);
+    itemsByStore.get(p.storeId)?.add(p.itemId);
+  }
+  return { pricesByStore, itemsByStore };
+}
+
+// ── Candidate plan generation ──
+
+/**
+ * Generate candidate trip plans: single-store, 2-store combos, and
+ * 3-store greedy set-cover plans.
+ *
+ * This is the core algorithm that determines which store combinations
+ * to evaluate. It does NOT call the database — all inputs are pre-fetched.
+ *
+ * @param stores - Stores with coordinates (already filtered to radius)
+ * @param itemsByStore - Map of storeId → Set of itemIds available at that store
+ * @param matchedItems - Items the user wants to buy
+ * @param itemIds - IDs of matchedItems (for set operations)
+ * @param planBuilder - Function that builds a TripPlan from a list of stores
+ */
+export function generateCandidatePlans(
+  stores: StoreWithId[],
+  itemsByStore: Map<string, Set<string>>,
+  matchedItems: MatchedItem[],
+  itemIds: string[],
+  planBuilder: (planStores: StoreWithId[]) => TripPlan,
+): TripPlan[] {
+  const candidatePlans: TripPlan[] = [];
+
+  // 1. Single-store plans (include any store with at least 1 item)
+  for (const store of stores) {
+    const storeItemSet = itemsByStore.get(store.id);
+    if (!storeItemSet || storeItemSet.size === 0) continue;
+    candidatePlans.push(planBuilder([store]));
+  }
+
+  // 2. Multi-store plans via greedy set-cover
+  // Sort stores by coverage (descending) and take top 8 for combo generation
+  const storesByCoverage = [...stores]
+    .map(store => ({ store, coverCount: itemsByStore.get(store.id)?.size || 0 }))
+    .filter(s => s.coverCount > 0)
+    .sort((a, b) => b.coverCount - a.coverCount)
+    .slice(0, 8);
+
+  const topStores = storesByCoverage.map(s => s.store);
+  const bestSingleCoverage = storesByCoverage.length > 0 ? storesByCoverage[0].coverCount / matchedItems.length : 0;
+
+  // Generate 2-store combos from top stores
+  for (let i = 0; i < topStores.length; i++) {
+    for (let j = i + 1; j < topStores.length; j++) {
+      const items1 = itemsByStore.get(topStores[i].id) || new Set<string>();
+      const items2 = itemsByStore.get(topStores[j].id) || new Set<string>();
+      const combined = new Set([...items1, ...items2]);
+      // Only include if the combo covers more than the best single store
+      if (combined.size > bestSingleCoverage * matchedItems.length) {
+        candidatePlans.push(planBuilder([topStores[i], topStores[j]]));
+      }
+    }
+  }
+
+  // Generate 3-store combos via greedy set-cover from top stores
+  if (matchedItems.length > 1 && topStores.length >= 3) {
+    // Start from each of the top 4 stores as seed, greedily add stores
+    const seeds = topStores.slice(0, Math.min(4, topStores.length));
+    const seen3 = new Set<string>();
+
+    for (const seed of seeds) {
+      const uncovered = new Set(itemIds);
+      const chosen: StoreWithId[] = [];
+      const remaining = topStores.filter(s => s.id !== seed.id);
+
+      // Add seed
+      chosen.push(seed);
+      const seedItems = itemsByStore.get(seed.id) || new Set<string>();
+      for (const id of seedItems) uncovered.delete(id);
+
+      // Greedily add up to 2 more stores
+      while (chosen.length < 3 && uncovered.size > 0 && remaining.length > 0) {
+        let bestIdx = -1;
+        let bestCover = 0;
+
+        for (let r = 0; r < remaining.length; r++) {
+          const rItems = itemsByStore.get(remaining[r].id) || new Set<string>();
+          let coverCount = 0;
+          for (const id of uncovered) {
+            if (rItems.has(id)) coverCount++;
+          }
+          if (coverCount > bestCover) {
+            bestCover = coverCount;
+            bestIdx = r;
+          }
+        }
+
+        if (bestIdx < 0 || bestCover === 0) break;
+
+        const nextStore = remaining.splice(bestIdx, 1)[0];
+        chosen.push(nextStore);
+        const nextItems = itemsByStore.get(nextStore.id) || new Set<string>();
+        for (const id of nextItems) uncovered.delete(id);
+      }
+
+      if (chosen.length >= 2) {
+        // Deduplicate by sorted store IDs
+        const key = chosen.map(s => s.id).sort().join(',');
+        if (!seen3.has(key)) {
+          seen3.add(key);
+          candidatePlans.push(planBuilder(chosen));
+        }
+      }
+    }
+  }
+
+  return candidatePlans;
+}
