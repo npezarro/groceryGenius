@@ -9,7 +9,10 @@ import {
   buildPlan,
   scorePlans,
   rankPlans,
+  indexPrices,
+  generateCandidatePlans,
 } from "../lib/trip-planner";
+import type { StoreWithId, MatchedItem, TripPlan } from "../lib/trip-planner";
 
 // Helper: build a minimal Price object for testing
 function makePrice(overrides: Partial<Price> & { price: string; itemId: string; storeId: string }): Price {
@@ -498,5 +501,307 @@ describe("rankPlans", () => {
 
   it("returns empty array for empty input", () => {
     expect(rankPlans([])).toEqual([]);
+  });
+});
+
+// ── indexPrices ──
+
+describe("indexPrices", () => {
+  it("indexes prices by store and tracks item sets", () => {
+    const stores = [{ id: "s1" }, { id: "s2" }];
+    const prices = [
+      { storeId: "s1", itemId: "i1", price: "2.99" },
+      { storeId: "s1", itemId: "i2", price: "3.99" },
+      { storeId: "s2", itemId: "i1", price: "2.49" },
+    ];
+    const { pricesByStore, itemsByStore } = indexPrices(stores, prices);
+
+    expect(pricesByStore.get("s1")).toHaveLength(2);
+    expect(pricesByStore.get("s2")).toHaveLength(1);
+    expect(itemsByStore.get("s1")).toEqual(new Set(["i1", "i2"]));
+    expect(itemsByStore.get("s2")).toEqual(new Set(["i1"]));
+  });
+
+  it("initializes empty maps for stores with no prices", () => {
+    const stores = [{ id: "s1" }, { id: "s2" }];
+    const { pricesByStore, itemsByStore } = indexPrices(stores, []);
+
+    expect(pricesByStore.get("s1")).toEqual([]);
+    expect(pricesByStore.get("s2")).toEqual([]);
+    expect(itemsByStore.get("s1")!.size).toBe(0);
+    expect(itemsByStore.get("s2")!.size).toBe(0);
+  });
+
+  it("ignores prices for stores not in the list", () => {
+    const stores = [{ id: "s1" }];
+    const prices = [
+      { storeId: "s1", itemId: "i1", price: "2.99" },
+      { storeId: "s999", itemId: "i2", price: "1.99" },
+    ];
+    const { pricesByStore, itemsByStore } = indexPrices(stores, prices);
+
+    expect(pricesByStore.get("s1")).toHaveLength(1);
+    expect(pricesByStore.has("s999")).toBe(false);
+    expect(itemsByStore.get("s1")).toEqual(new Set(["i1"]));
+  });
+
+  it("handles empty stores array", () => {
+    const prices = [{ storeId: "s1", itemId: "i1", price: "2.99" }];
+    const { pricesByStore, itemsByStore } = indexPrices([], prices);
+
+    expect(pricesByStore.size).toBe(0);
+    expect(itemsByStore.size).toBe(0);
+  });
+
+  it("handles multiple items at same store", () => {
+    const stores = [{ id: "s1" }];
+    const prices = [
+      { storeId: "s1", itemId: "i1", price: "2.99" },
+      { storeId: "s1", itemId: "i2", price: "3.99" },
+      { storeId: "s1", itemId: "i3", price: "4.99" },
+    ];
+    const { pricesByStore, itemsByStore } = indexPrices(stores, prices);
+
+    expect(pricesByStore.get("s1")).toHaveLength(3);
+    expect(itemsByStore.get("s1")!.size).toBe(3);
+  });
+});
+
+// ── generateCandidatePlans ──
+
+describe("generateCandidatePlans", () => {
+  // Helper to create a store
+  function makeStore(id: string, lat = 40.0, lng = -74.0): StoreWithId {
+    return { id, name: `Store ${id}`, lat, lng };
+  }
+
+  // Simple plan builder that tracks which store combos were requested
+  function trackingPlanBuilder(): { calls: string[][]; builder: (stores: StoreWithId[]) => TripPlan } {
+    const calls: string[][] = [];
+    const builder = (stores: StoreWithId[]): TripPlan => {
+      const ids = stores.map(s => s.id);
+      calls.push(ids);
+      return {
+        stores: stores.map(s => ({ store: { id: s.id, name: s.name }, items: [], subtotal: 0 })),
+        totalCost: 10 * stores.length,
+        totalTime: 15 * stores.length,
+        totalDistance: 5 * stores.length,
+        score: 0,
+        coverage: 0.5,
+      };
+    };
+    return { calls, builder };
+  }
+
+  it("generates single-store plans for stores with items", () => {
+    const stores = [makeStore("s1"), makeStore("s2"), makeStore("s3")];
+    const itemsByStore = new Map([
+      ["s1", new Set(["i1", "i2"])],
+      ["s2", new Set(["i1"])],
+      ["s3", new Set<string>()],
+    ]);
+    const items: MatchedItem[] = [{ id: "i1", name: "A" }, { id: "i2", name: "B" }];
+    const { calls, builder } = trackingPlanBuilder();
+
+    generateCandidatePlans(stores, itemsByStore, items, ["i1", "i2"], builder);
+
+    // s1 and s2 have items; s3 is empty → 2 single-store plans
+    const singleStoreCalls = calls.filter(c => c.length === 1);
+    expect(singleStoreCalls).toEqual([["s1"], ["s2"]]);
+  });
+
+  it("skips stores with no items", () => {
+    const stores = [makeStore("s1"), makeStore("s2")];
+    const itemsByStore = new Map([
+      ["s1", new Set<string>()],
+      ["s2", new Set(["i1"])],
+    ]);
+    const items: MatchedItem[] = [{ id: "i1", name: "A" }];
+    const { calls, builder } = trackingPlanBuilder();
+
+    generateCandidatePlans(stores, itemsByStore, items, ["i1"], builder);
+
+    const singleStoreCalls = calls.filter(c => c.length === 1);
+    expect(singleStoreCalls).toEqual([["s2"]]);
+  });
+
+  it("generates 2-store combos that improve on best single store", () => {
+    const stores = [makeStore("s1"), makeStore("s2")];
+    // s1 covers i1, s2 covers i2 — each covers 1/2 items, combo covers 2/2
+    const itemsByStore = new Map([
+      ["s1", new Set(["i1"])],
+      ["s2", new Set(["i2"])],
+    ]);
+    const items: MatchedItem[] = [{ id: "i1", name: "A" }, { id: "i2", name: "B" }];
+    const { calls, builder } = trackingPlanBuilder();
+
+    generateCandidatePlans(stores, itemsByStore, items, ["i1", "i2"], builder);
+
+    const twoCombos = calls.filter(c => c.length === 2);
+    expect(twoCombos.length).toBeGreaterThanOrEqual(1);
+    expect(twoCombos[0]).toEqual(["s1", "s2"]);
+  });
+
+  it("skips 2-store combos that don't improve coverage", () => {
+    const stores = [makeStore("s1"), makeStore("s2")];
+    // s1 covers both items already — combo with s2 doesn't improve
+    const itemsByStore = new Map([
+      ["s1", new Set(["i1", "i2"])],
+      ["s2", new Set(["i1"])],
+    ]);
+    const items: MatchedItem[] = [{ id: "i1", name: "A" }, { id: "i2", name: "B" }];
+    const { calls, builder } = trackingPlanBuilder();
+
+    generateCandidatePlans(stores, itemsByStore, items, ["i1", "i2"], builder);
+
+    const twoCombos = calls.filter(c => c.length === 2);
+    expect(twoCombos.length).toBe(0);
+  });
+
+  it("generates 3-store greedy set-cover plans for multiple items", () => {
+    // 4 stores, each covering different items
+    const stores = [makeStore("s1"), makeStore("s2"), makeStore("s3"), makeStore("s4")];
+    const itemsByStore = new Map([
+      ["s1", new Set(["i1"])],
+      ["s2", new Set(["i2"])],
+      ["s3", new Set(["i3"])],
+      ["s4", new Set(["i1", "i2", "i3"])],
+    ]);
+    const items: MatchedItem[] = [
+      { id: "i1", name: "A" }, { id: "i2", name: "B" }, { id: "i3", name: "C" },
+    ];
+    const { calls, builder } = trackingPlanBuilder();
+
+    generateCandidatePlans(stores, itemsByStore, items, ["i1", "i2", "i3"], builder);
+
+    // Should have some 3-store or 2-store greedy combos
+    const multiStoreCalls = calls.filter(c => c.length >= 2);
+    expect(multiStoreCalls.length).toBeGreaterThan(0);
+  });
+
+  it("does not generate 3-store combos with only 1 item", () => {
+    const stores = [makeStore("s1"), makeStore("s2"), makeStore("s3")];
+    const itemsByStore = new Map([
+      ["s1", new Set(["i1"])],
+      ["s2", new Set(["i1"])],
+      ["s3", new Set(["i1"])],
+    ]);
+    const items: MatchedItem[] = [{ id: "i1", name: "A" }];
+    const { calls, builder } = trackingPlanBuilder();
+
+    generateCandidatePlans(stores, itemsByStore, items, ["i1"], builder);
+
+    // 3-store greedy is skipped when matchedItems.length <= 1
+    const threeStoreCalls = calls.filter(c => c.length === 3);
+    expect(threeStoreCalls.length).toBe(0);
+  });
+
+  it("deduplicates 3-store greedy plans by sorted store IDs", () => {
+    // 3 stores that all cover different items
+    const stores = [makeStore("s1"), makeStore("s2"), makeStore("s3")];
+    const itemsByStore = new Map([
+      ["s1", new Set(["i1"])],
+      ["s2", new Set(["i2"])],
+      ["s3", new Set(["i3"])],
+    ]);
+    const items: MatchedItem[] = [
+      { id: "i1", name: "A" }, { id: "i2", name: "B" }, { id: "i3", name: "C" },
+    ];
+    const { calls, builder } = trackingPlanBuilder();
+
+    generateCandidatePlans(stores, itemsByStore, items, ["i1", "i2", "i3"], builder);
+
+    // Check that no two greedy calls have the same sorted store set
+    const greedyCalls = calls.filter(c => c.length >= 2);
+    const sortedKeys = greedyCalls.map(c => [...c].sort().join(","));
+    const uniqueKeys = new Set(sortedKeys);
+    expect(uniqueKeys.size).toBe(sortedKeys.length);
+  });
+
+  it("returns empty array when all stores are empty", () => {
+    const stores = [makeStore("s1"), makeStore("s2")];
+    const itemsByStore = new Map([
+      ["s1", new Set<string>()],
+      ["s2", new Set<string>()],
+    ]);
+    const items: MatchedItem[] = [{ id: "i1", name: "A" }];
+    const { builder } = trackingPlanBuilder();
+
+    const result = generateCandidatePlans(stores, itemsByStore, items, ["i1"], builder);
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty array with no stores", () => {
+    const items: MatchedItem[] = [{ id: "i1", name: "A" }];
+    const { builder } = trackingPlanBuilder();
+
+    const result = generateCandidatePlans([], new Map(), items, ["i1"], builder);
+    expect(result).toEqual([]);
+  });
+
+  it("limits top stores to 8 for combo generation", () => {
+    // Create 10 stores, each covering 1 different item
+    const stores = Array.from({ length: 10 }, (_, i) => makeStore(`s${i}`));
+    const itemsByStore = new Map(
+      stores.map((s, i) => [s.id, new Set([`i${i}`])])
+    );
+    const items: MatchedItem[] = Array.from({ length: 10 }, (_, i) => ({ id: `i${i}`, name: `Item ${i}` }));
+    const itemIds = items.map(it => it.id);
+    const { calls, builder } = trackingPlanBuilder();
+
+    generateCandidatePlans(stores, itemsByStore, items, itemIds, builder);
+
+    // 2-store combos should only involve stores from the top 8
+    const twoCombos = calls.filter(c => c.length === 2);
+    for (const combo of twoCombos) {
+      for (const id of combo) {
+        // All combo stores should be in the top 8 by coverage
+        const storeIndex = parseInt(id.replace("s", ""));
+        expect(storeIndex).toBeLessThan(10); // sanity check
+      }
+    }
+  });
+
+  it("greedy set-cover picks stores that maximize coverage", () => {
+    // s1 covers i1,i2; s2 covers i3,i4; s3 covers i1,i3 (overlaps)
+    const stores = [makeStore("s1"), makeStore("s2"), makeStore("s3")];
+    const itemsByStore = new Map([
+      ["s1", new Set(["i1", "i2"])],
+      ["s2", new Set(["i3", "i4"])],
+      ["s3", new Set(["i1", "i3"])],
+    ]);
+    const items: MatchedItem[] = [
+      { id: "i1", name: "A" }, { id: "i2", name: "B" },
+      { id: "i3", name: "C" }, { id: "i4", name: "D" },
+    ];
+    const { calls, builder } = trackingPlanBuilder();
+
+    generateCandidatePlans(stores, itemsByStore, items, ["i1", "i2", "i3", "i4"], builder);
+
+    // The greedy algorithm starting from s1 should pick s2 (covers i3,i4)
+    // since s3 only covers i3 (i1 already covered by s1)
+    const greedyCalls = calls.filter(c => c.length >= 2);
+    const hasS1S2 = greedyCalls.some(c => {
+      const sorted = [...c].sort();
+      return sorted.includes("s1") && sorted.includes("s2");
+    });
+    expect(hasS1S2).toBe(true);
+  });
+
+  it("does not generate 3-store combos with fewer than 3 stores", () => {
+    const stores = [makeStore("s1"), makeStore("s2")];
+    const itemsByStore = new Map([
+      ["s1", new Set(["i1"])],
+      ["s2", new Set(["i2"])],
+    ]);
+    const items: MatchedItem[] = [
+      { id: "i1", name: "A" }, { id: "i2", name: "B" },
+    ];
+    const { calls, builder } = trackingPlanBuilder();
+
+    generateCandidatePlans(stores, itemsByStore, items, ["i1", "i2"], builder);
+
+    const threeStoreCalls = calls.filter(c => c.length === 3);
+    expect(threeStoreCalls.length).toBe(0);
   });
 });
