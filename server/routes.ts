@@ -1,7 +1,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { prices, stores, type Price, type InsertStore, type InsertItem, type InsertPrice } from "@shared/schema";
+import { prices, stores, type InsertStore, type InsertItem, type InsertPrice } from "@shared/schema";
 import { parseStoresFromCsv, parseItemsFromCsv, parsePricesFromCsv } from "./lib/csv-importer";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -11,9 +11,6 @@ import { hashPassword, verifyPassword, requireAuth, validateInput } from "./auth
 import { getAdapters, getRecentRuns, isSourceStale } from "./pipeline/index";
 import { triggerManualRun, triggerSingleRun, getSchedulerStatus } from "./pipeline/scheduler";
 import {
-  calculateEffectivePrice,
-  distToStore,
-  distBetweenStores,
   buildPlan,
   scorePlans,
   rankPlans,
@@ -21,51 +18,7 @@ import {
   indexPrices,
   generateCandidatePlans,
 } from "./lib/trip-planner";
-
-// Geocoding — Mapbox primary, Nominatim (OpenStreetMap) fallback
-async function geocodeWithNominatim(address: string): Promise<{ lat: number; lng: number } | null> {
-  const encodedAddress = encodeURIComponent(address);
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?q=${encodedAddress}&format=json&limit=1`,
-    { headers: { "User-Agent": "GroceryGenius/1.0" } }
-  );
-  if (!response.ok) return null;
-  const data = await response.json();
-  if (data.length > 0) {
-    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-  }
-  return null;
-}
-
-async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
-  const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN || process.env.MAPBOX_TOKEN;
-
-  if (mapboxToken) {
-    try {
-      const encodedAddress = encodeURIComponent(address);
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?access_token=${mapboxToken}&limit=1`
-      );
-      if (!response.ok) throw new Error(`Mapbox API error: ${response.statusText}`);
-      const data = await response.json();
-      if (data.features && data.features.length > 0) {
-        const [lng, lat] = data.features[0].center;
-        return { lat, lng };
-      }
-      return null;
-    } catch (error) {
-      console.error("Mapbox geocoding error, falling back to Nominatim:", error);
-    }
-  }
-
-  // Fallback to Nominatim (no API key required)
-  try {
-    return await geocodeWithNominatim(address);
-  } catch (error) {
-    console.error("Nominatim geocoding error:", error);
-    return null;
-  }
-}
+import { geocodeAddress } from "./lib/geocoding";
 
 // Trip planning algorithm
 
