@@ -2,6 +2,7 @@ import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { prices, stores, type Price, type InsertStore, type InsertItem, type InsertPrice } from "@shared/schema";
+import { parseStoresFromCsv, parseItemsFromCsv, parsePricesFromCsv } from "./lib/csv-importer";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
@@ -10,7 +11,6 @@ import { hashPassword, verifyPassword, requireAuth, validateInput } from "./auth
 import { getAdapters, getRecentRuns, isSourceStale } from "./pipeline/index";
 import { triggerManualRun, triggerSingleRun, getSchedulerStatus } from "./pipeline/scheduler";
 import {
-  parseCSV,
   calculateEffectivePrice,
   distToStore,
   distBetweenStores,
@@ -441,48 +441,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!csvData) {
         return res.status(400).json({ error: "CSV data is required" });
       }
-
-      const rows = parseCSV(csvData);
-      if (rows.length === 0) {
-        return res.status(400).json({ error: "CSV data is empty" });
+      const mapped = parseStoresFromCsv(csvData);
+      if (mapped.length === 0) {
+        return res.status(400).json({ error: "CSV data is empty or contains no valid stores" });
       }
-      const headers = rows[0];
-      const dataRows = rows.slice(1);
-
-      const stores = dataRows.map(row => {
-        const store: Partial<InsertStore> = {};
-        headers.forEach((header, index) => {
-          const value = row[index]?.replace(/^"|"$/g, ''); // Remove quotes
-          switch (header.toLowerCase()) {
-            case 'name':
-              store.name = value;
-              break;
-            case 'address':
-              store.address = value;
-              break;
-            case 'lat':
-            case 'latitude':
-              store.lat = value ? parseFloat(value) : null;
-              break;
-            case 'lng':
-            case 'longitude':
-              store.lng = value ? parseFloat(value) : null;
-              break;
-            case 'hours':
-            case 'hours_json':
-              try {
-                store.hoursJson = value ? JSON.parse(value) : null;
-              } catch {
-                store.hoursJson = null;
-              }
-              break;
-          }
-        });
-        return store;
-      }).filter(store => store.name && store.address);
-
-      await storage.importStores(stores as InsertStore[]);
-      res.json({ imported: stores.length, message: "Stores imported successfully" });
+      await storage.importStores(mapped as InsertStore[]);
+      res.json({ imported: mapped.length, message: "Stores imported successfully" });
     } catch (error) {
       console.error("Store import error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Import failed" });
@@ -498,41 +462,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!csvData) {
         return res.status(400).json({ error: "CSV data is required" });
       }
-
-      const rows = parseCSV(csvData);
-      if (rows.length === 0) {
-        return res.status(400).json({ error: "CSV data is empty" });
+      const mapped = parseItemsFromCsv(csvData);
+      if (mapped.length === 0) {
+        return res.status(400).json({ error: "CSV data is empty or contains no valid items" });
       }
-      const headers = rows[0];
-      const dataRows = rows.slice(1);
-
-      const items = dataRows.map(row => {
-        const item: Partial<InsertItem> = {};
-        headers.forEach((header, index) => {
-          const value = row[index]?.replace(/^"|"$/g, '');
-          switch (header.toLowerCase()) {
-            case 'name':
-              item.name = value;
-              break;
-            case 'descriptor':
-              item.descriptor = value || null;
-              break;
-            case 'unit':
-              item.unit = value || null;
-              break;
-            case 'organic_conventional':
-              item.organicConventional = value || null;
-              break;
-            case 'bunch_flag':
-              item.bunchFlag = value?.toLowerCase() === 'true';
-              break;
-          }
-        });
-        return item;
-      }).filter(item => item.name);
-
-      await storage.importItems(items as InsertItem[]);
-      res.json({ imported: items.length, message: "Items imported successfully" });
+      await storage.importItems(mapped as InsertItem[]);
+      res.json({ imported: mapped.length, message: "Items imported successfully" });
     } catch (error) {
       console.error("Item import error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Import failed" });
@@ -548,47 +483,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!csvData) {
         return res.status(400).json({ error: "CSV data is required" });
       }
-
-      const rows = parseCSV(csvData);
-      if (rows.length === 0) {
-        return res.status(400).json({ error: "CSV data is empty" });
+      const mapped = parsePricesFromCsv(csvData);
+      if (mapped.length === 0) {
+        return res.status(400).json({ error: "CSV data is empty or contains no valid prices" });
       }
-      const headers = rows[0];
-      const dataRows = rows.slice(1);
-
-      const prices = dataRows.map(row => {
-        const price: Partial<InsertPrice> = {};
-        headers.forEach((header, index) => {
-          const value = row[index]?.replace(/^"|"$/g, '');
-          switch (header.toLowerCase()) {
-            case 'item_id':
-              price.itemId = value;
-              break;
-            case 'store_id':
-              price.storeId = value;
-              break;
-            case 'price_type':
-              price.priceType = value || null;
-              break;
-            case 'price':
-              price.price = value;
-              break;
-            case 'quantity':
-              price.quantity = value || null;
-              break;
-            case 'unit':
-              price.unit = value || null;
-              break;
-            case 'notes':
-              price.notes = value || null;
-              break;
-          }
-        });
-        return price;
-      }).filter(price => price.itemId && price.storeId && price.price);
-
-      await storage.importPrices(prices as InsertPrice[]);
-      res.json({ imported: prices.length, message: "Prices imported successfully" });
+      await storage.importPrices(mapped as InsertPrice[]);
+      res.json({ imported: mapped.length, message: "Prices imported successfully" });
     } catch (error) {
       console.error("Price import error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Import failed" });
