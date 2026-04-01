@@ -19,6 +19,7 @@ import {
   generateCandidatePlans,
 } from "./lib/trip-planner";
 import { geocodeAddress } from "./lib/geocoding";
+import { deduplicateLatestByStore, parseDaysParam } from "./lib/price-queries";
 
 // Trip planning algorithm
 
@@ -262,18 +263,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(prices.itemId, itemId))
         .orderBy(desc(prices.capturedAt));
 
-      // Deduplicate to latest price per store
-      const latestByStore = new Map<string, typeof results[0]>();
-      for (const r of results) {
-        if (!latestByStore.has(r.storeId)) {
-          latestByStore.set(r.storeId, r);
-        }
-      }
-
-      const comparison = [...latestByStore.values()].sort(
-        (a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0)
-      );
-      res.json(comparison);
+      res.json(deduplicateLatestByStore(results));
     } catch (_error) {
       res.status(500).json({ error: "Failed to fetch price comparison" });
     }
@@ -284,9 +274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { itemId } = req.params;
       const { storeId, days } = req.query;
-      
-      const parsedDays = days ? parseInt(days as string, 10) : 30;
-      const daysBack = isNaN(parsedDays) || parsedDays < 1 ? 30 : Math.min(parsedDays, 365);
+      const daysBack = parseDaysParam(days as string);
       const history = await storage.getPriceHistory(itemId, storeId as string, daysBack);
       
       res.json(history);
@@ -304,8 +292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const itemIdArray = (itemIds as string).split(',');
-      const parsedDays = days ? parseInt(days as string, 10) : 30;
-      const daysBack = isNaN(parsedDays) || parsedDays < 1 ? 30 : Math.min(parsedDays, 365);
+      const daysBack = parseDaysParam(days as string);
       
       const history = await storage.getPriceHistoryForMultipleItems(itemIdArray, daysBack);
       res.json(history);
