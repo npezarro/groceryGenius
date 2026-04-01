@@ -9,6 +9,16 @@ import { seedTopUp, type SeedMode } from "./seed";
 import { hashPassword, verifyPassword, requireAuth, validateInput } from "./auth";
 import { getAdapters, getRecentRuns, isSourceStale } from "./pipeline/index";
 import { triggerManualRun, triggerSingleRun, getSchedulerStatus } from "./pipeline/scheduler";
+import {
+  parseCSV,
+  calculateEffectivePrice,
+  distToStore,
+  distBetweenStores,
+  buildPlan,
+  scorePlans,
+  rankPlans,
+  matchItems,
+} from "./lib/trip-planner";
 
 // Geocoding — Mapbox primary, Nominatim (OpenStreetMap) fallback
 async function geocodeWithNominatim(address: string): Promise<{ lat: number; lng: number } | null> {
@@ -55,65 +65,7 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
   }
 }
 
-// CSV parsing utility
-function parseCSV(csvText: string): string[][] {
-  const lines = csvText.split('\n').filter(line => line.trim());
-  return lines.map(line => {
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    
-    result.push(current.trim());
-    return result;
-  });
-}
-
 // Trip planning algorithm
-// Helper function to calculate effective price considering promotions and member pricing
-function calculateEffectivePrice(price: Price, userHasMembership: boolean = false): number {
-  const now = new Date();
-
-  // Start with original price or current price as fallback
-  let effectivePrice = parseFloat(price.originalPrice || price.price);
-  const currentPrice = parseFloat(price.price);
-
-  // Guard against non-numeric price strings
-  if (isNaN(currentPrice)) return 0;
-  if (isNaN(effectivePrice)) effectivePrice = currentPrice;
-
-  // Check if promotion is active
-  const isActivePromotion = price.isPromotion &&
-    (!price.promotionStartDate || new Date(price.promotionStartDate) <= now) &&
-    (!price.promotionEndDate || new Date(price.promotionEndDate) >= now);
-
-  // Apply promotional pricing if active
-  if (isActivePromotion) {
-    effectivePrice = Math.min(effectivePrice, currentPrice);
-  }
-
-  // Apply member pricing if user has membership and member price exists
-  if (userHasMembership && price.memberPrice) {
-    const memberPrice = parseFloat(price.memberPrice);
-    if (!isNaN(memberPrice)) {
-      effectivePrice = Math.min(effectivePrice, memberPrice);
-    }
-  }
-
-  return effectivePrice;
-}
 
 async function generateTripPlans(
   itemNames: string[],
@@ -125,17 +77,7 @@ async function generateTripPlans(
 ) {
   // Find items by fuzzy matching
   const allItems = await storage.getAllItems();
-  const matchedItems = itemNames.map(name => {
-    const exactMatch = allItems.find(item =>
-      item.name.toLowerCase() === name.toLowerCase()
-    );
-    if (exactMatch) return exactMatch;
-    const fuzzyMatch = allItems.find(item =>
-      item.name.toLowerCase().includes(name.toLowerCase()) ||
-      name.toLowerCase().includes(item.name.toLowerCase())
-    );
-    return fuzzyMatch;
-  }).filter(Boolean);
+  const matchedItems = matchItems(itemNames, allItems);
 
   if (matchedItems.length === 0) return [];
 
@@ -145,7 +87,7 @@ async function generateTripPlans(
   if (storesWithCoords.length === 0) return [];
 
   // Get prices for matched items at nearby stores
-  const itemIds = matchedItems.map(item => item!.id);
+  const itemIds = matchedItems.map(item => item.id);
   const storeIds = storesWithCoords.map(store => store.id);
   const allPrices = await storage.getPricesForItems(itemIds, storeIds);
 
@@ -161,108 +103,20 @@ async function generateTripPlans(
     itemsByStore.get(p.storeId)?.add(p.itemId);
   }
 
-  // Helper: calculate distance from user to a store (in miles)
-  function distToStore(store: { lat?: number | null; lng?: number | null }) {
-    if (store.lat == null || store.lng == null) return Infinity;
-    return Math.sqrt(
-      Math.pow(userLat - store.lat, 2) + Math.pow(userLng - store.lng, 2)
-    ) * 69;
-  }
-
-  // Helper: calculate distance between two stores
-  function distBetweenStores(
-    a: { lat?: number | null; lng?: number | null },
-    b: { lat?: number | null; lng?: number | null }
-  ) {
-    if (a.lat == null || a.lng == null || b.lat == null || b.lng == null) return Infinity;
-    return Math.sqrt(
-      Math.pow(a.lat - b.lat, 2) + Math.pow(a.lng - b.lng, 2)
-    ) * 69;
-  }
-
-  // Helper: build a plan from a list of stores, assigning each item to cheapest source
-  function buildPlan(planStores: typeof storesWithCoords) {
-    const storeData = planStores.map(store => ({
-      store,
-      items: [] as typeof matchedItems,
-      itemPrices: [] as Array<{ itemId: string; itemName: string; price: number; unit: string | null; quantity: string | null }>,
-      subtotal: 0,
-      prices: pricesByStore.get(store.id) || [],
-      coveredItems: itemsByStore.get(store.id) || new Set<string>()
-    }));
-
-    let totalCost = 0;
-    let coveredCount = 0;
-
-    for (const item of matchedItems) {
-      let bestPrice = Infinity;
-      let bestStoreIdx = -1;
-      let bestPriceRecord: typeof allPrices[0] | null = null;
-
-      for (let i = 0; i < storeData.length; i++) {
-        const sp = storeData[i].prices.find(p => p.itemId === item!.id);
-        if (sp) {
-          const ep = calculateEffectivePrice(sp, userHasMembership);
-          if (ep < bestPrice) {
-            bestPrice = ep;
-            bestStoreIdx = i;
-            bestPriceRecord = sp;
-          }
-        }
-      }
-
-      if (bestStoreIdx >= 0 && bestPriceRecord) {
-        storeData[bestStoreIdx].items.push(item);
-        storeData[bestStoreIdx].itemPrices.push({
-          itemId: item!.id,
-          itemName: item!.name,
-          price: bestPrice,
-          unit: bestPriceRecord.unit,
-          quantity: bestPriceRecord.quantity,
-        });
-        storeData[bestStoreIdx].subtotal += bestPrice;
-        totalCost += bestPrice;
-        coveredCount++;
-      }
-    }
-
-    // Calculate route distance: user -> store1 -> store2 -> ...
-    let totalDistance = 0;
-    if (planStores.length === 1) {
-      totalDistance = distToStore(planStores[0]);
-    } else {
-      totalDistance = distToStore(planStores[0]);
-      for (let i = 1; i < planStores.length; i++) {
-        totalDistance += distBetweenStores(planStores[i - 1], planStores[i]);
-      }
-    }
-
-    const baseTime = 10 * planStores.length; // 10 min per stop
-    const travelTime = totalDistance * 3; // ~3 min per mile
-    const totalTime = Math.max(baseTime, baseTime + travelTime);
-    const coverage = coveredCount / matchedItems.length;
-
-    // Filter out stores with no items assigned (can happen in combos)
-    const activeStores = storeData
-      .filter(sd => sd.items.length > 0)
-      .map(sd => ({
-        store: { id: sd.store.id, name: sd.store.name, address: sd.store.address, lat: sd.store.lat, lng: sd.store.lng },
-        items: sd.itemPrices,
-        subtotal: sd.subtotal,
-      }));
-
-    return { stores: activeStores, totalCost, totalTime, totalDistance, score: 0, coverage };
+  // Helper using extracted buildPlan
+  function makePlan(planStores: typeof storesWithCoords) {
+    return buildPlan(planStores, matchedItems, pricesByStore, itemsByStore, userLat, userLng, userHasMembership);
   }
 
   // ── Generate all candidate plans ──
 
-  const candidatePlans: ReturnType<typeof buildPlan>[] = [];
+  const candidatePlans: ReturnType<typeof makePlan>[] = [];
 
   // 1. Single-store plans (include any store with at least 1 item)
   for (const store of storesWithCoords) {
     const storeItemSet = itemsByStore.get(store.id);
     if (!storeItemSet || storeItemSet.size === 0) continue;
-    candidatePlans.push(buildPlan([store]));
+    candidatePlans.push(makePlan([store]));
   }
 
   // 2. Multi-store plans via greedy set-cover
@@ -284,7 +138,7 @@ async function generateTripPlans(
       const combined = new Set([...items1, ...items2]);
       // Only include if the combo covers more than the best single store
       if (combined.size > bestSingleCoverage * matchedItems.length) {
-        candidatePlans.push(buildPlan([topStores[i], topStores[j]]));
+        candidatePlans.push(makePlan([topStores[i], topStores[j]]));
       }
     }
   }
@@ -335,7 +189,7 @@ async function generateTripPlans(
         const key = chosen.map(s => s.id).sort().join(',');
         if (!seen3.has(key)) {
           seen3.add(key);
-          candidatePlans.push(buildPlan(chosen));
+          candidatePlans.push(makePlan(chosen));
         }
       }
     }
@@ -343,51 +197,9 @@ async function generateTripPlans(
 
   if (candidatePlans.length === 0) return [];
 
-  // ── Score all plans with min/max normalization ──
-
-  const costs = candidatePlans.map(p => p.totalCost);
-  const times = candidatePlans.map(p => p.totalTime);
-  const distances = candidatePlans.map(p => p.totalDistance);
-  const minCost = Math.min(...costs), maxCost = Math.max(...costs);
-  const minTime = Math.min(...times), maxTime = Math.max(...times);
-  const minDist = Math.min(...distances), maxDist = Math.max(...distances);
-
-  for (const plan of candidatePlans) {
-    // Normalize each dimension to 0-1 (0 = best, 1 = worst)
-    const normCost = maxCost > minCost ? (plan.totalCost - minCost) / (maxCost - minCost) : 0;
-    const normTime = maxTime > minTime ? (plan.totalTime - minTime) / (maxTime - minTime) : 0;
-    const normDist = maxDist > minDist ? (plan.totalDistance - minDist) / (maxDist - minDist) : 0;
-
-    // Weighted penalty (lower = better)
-    const penalty = weights.price * normCost + weights.time * normTime + weights.distance * normDist;
-
-    // Score: 0-100, multiplied by coverage so partial-coverage plans are penalized
-    plan.score = Math.round((1 - penalty) * plan.coverage * 100);
-  }
-
-  // ── Sort: coverage descending, then score descending ──
-  candidatePlans.sort((a, b) => {
-    if (b.coverage !== a.coverage) return b.coverage - a.coverage;
-    return b.score - a.score;
-  });
-
-  // Ensure at least one multi-store plan appears if it has better coverage than any single-store plan
-  const finalPlans = candidatePlans.slice(0, 6);
-  const hasMultiStore = finalPlans.some(p => p.stores.length > 1);
-  if (!hasMultiStore) {
-    const bestMulti = candidatePlans.find(p => p.stores.length > 1);
-    if (bestMulti && bestMulti.coverage > 0) {
-      finalPlans.pop();
-      finalPlans.push(bestMulti);
-      // Re-sort after insertion
-      finalPlans.sort((a, b) => {
-        if (b.coverage !== a.coverage) return b.coverage - a.coverage;
-        return b.score - a.score;
-      });
-    }
-  }
-
-  return finalPlans;
+  // Score and rank plans
+  scorePlans(candidatePlans, weights);
+  return rankPlans(candidatePlans);
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
