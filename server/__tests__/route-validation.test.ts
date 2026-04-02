@@ -198,3 +198,249 @@ describe("receipt schema validation", () => {
     expect(result.parsedItems).toHaveLength(200);
   });
 });
+
+// ── Trip plan schema validation ──────────────────────────────────
+
+const tripPlanSchema = z.object({
+  items: z.array(z.string()),
+  location: z.object({
+    lat: z.number(),
+    lng: z.number(),
+  }),
+  radius: z.number().min(1).max(50),
+  weights: z.object({
+    price: z.number().min(0).max(1),
+    time: z.number().min(0).max(1),
+    distance: z.number().min(0).max(1),
+  }),
+  userHasMembership: z.boolean().optional().default(false),
+});
+
+describe("POST /api/trip-plans validation", () => {
+  it("accepts valid trip plan request", () => {
+    const result = tripPlanSchema.parse({
+      items: ["milk", "bread", "eggs"],
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    });
+    expect(result.items).toHaveLength(3);
+    expect(result.userHasMembership).toBe(false);
+  });
+
+  it("accepts request with userHasMembership true", () => {
+    const result = tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 5,
+      weights: { price: 1, time: 0, distance: 0 },
+      userHasMembership: true,
+    });
+    expect(result.userHasMembership).toBe(true);
+  });
+
+  it("rejects missing items", () => {
+    expect(() => tripPlanSchema.parse({
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    })).toThrow();
+  });
+
+  it("rejects missing location", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    })).toThrow();
+  });
+
+  it("rejects missing weights", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 10,
+    })).toThrow();
+  });
+
+  it("rejects radius below 1", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 0,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    })).toThrow();
+  });
+
+  it("rejects radius above 50", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 51,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    })).toThrow();
+  });
+
+  it("rejects weight below 0", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 10,
+      weights: { price: -0.1, time: 0.5, distance: 0.5 },
+    })).toThrow();
+  });
+
+  it("rejects weight above 1", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 10,
+      weights: { price: 1.1, time: 0, distance: 0 },
+    })).toThrow();
+  });
+
+  it("rejects non-numeric location lat", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: "abc", lng: -122.4194 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    })).toThrow();
+  });
+
+  it("rejects items as non-array", () => {
+    expect(() => tripPlanSchema.parse({
+      items: "milk",
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    })).toThrow();
+  });
+
+  it("accepts empty items array", () => {
+    const result = tripPlanSchema.parse({
+      items: [],
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    });
+    expect(result.items).toHaveLength(0);
+  });
+
+  it("accepts boundary radius values", () => {
+    const r1 = tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 0, lng: 0 },
+      radius: 1,
+      weights: { price: 0, time: 0, distance: 0 },
+    });
+    expect(r1.radius).toBe(1);
+
+    const r50 = tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 0, lng: 0 },
+      radius: 50,
+      weights: { price: 1, time: 1, distance: 1 },
+    });
+    expect(r50.radius).toBe(50);
+  });
+
+  it("accepts boundary weight values", () => {
+    const result = tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 0, lng: 0 },
+      radius: 10,
+      weights: { price: 0, time: 0, distance: 0 },
+    });
+    expect(result.weights.price).toBe(0);
+  });
+
+  it("rejects partial weights object", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 10,
+      weights: { price: 0.5 },
+    })).toThrow();
+  });
+});
+
+// ── User price submission schema ─────────────────────────────────
+
+const userPriceSchema = z.object({
+  itemName: z.string().min(1),
+  storeId: z.string(),
+  price: z.number().positive(),
+  unit: z.string().optional(),
+  quantity: z.number().optional(),
+});
+
+describe("POST /api/user/prices validation", () => {
+  it("accepts valid price submission", () => {
+    const result = userPriceSchema.parse({
+      itemName: "Organic Milk",
+      storeId: "store-123",
+      price: 4.99,
+    });
+    expect(result.itemName).toBe("Organic Milk");
+    expect(result.price).toBe(4.99);
+  });
+
+  it("accepts submission with optional fields", () => {
+    const result = userPriceSchema.parse({
+      itemName: "Eggs",
+      storeId: "store-456",
+      price: 3.49,
+      unit: "dozen",
+      quantity: 1,
+    });
+    expect(result.unit).toBe("dozen");
+    expect(result.quantity).toBe(1);
+  });
+
+  it("rejects empty item name", () => {
+    expect(() => userPriceSchema.parse({
+      itemName: "",
+      storeId: "store-123",
+      price: 4.99,
+    })).toThrow();
+  });
+
+  it("rejects zero price", () => {
+    expect(() => userPriceSchema.parse({
+      itemName: "Milk",
+      storeId: "store-123",
+      price: 0,
+    })).toThrow();
+  });
+
+  it("rejects negative price", () => {
+    expect(() => userPriceSchema.parse({
+      itemName: "Milk",
+      storeId: "store-123",
+      price: -1.50,
+    })).toThrow();
+  });
+
+  it("rejects missing storeId", () => {
+    expect(() => userPriceSchema.parse({
+      itemName: "Milk",
+      price: 4.99,
+    })).toThrow();
+  });
+
+  it("rejects missing price", () => {
+    expect(() => userPriceSchema.parse({
+      itemName: "Milk",
+      storeId: "store-123",
+    })).toThrow();
+  });
+
+  it("rejects string price", () => {
+    expect(() => userPriceSchema.parse({
+      itemName: "Milk",
+      storeId: "store-123",
+      price: "4.99",
+    })).toThrow();
+  });
+});
