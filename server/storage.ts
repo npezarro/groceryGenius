@@ -9,6 +9,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray, sql, desc, asc } from "drizzle-orm";
+import { escapeLikePattern } from "./lib/escape-like";
 
 export class DatabaseStorage {
   // ── User methods ────────────────────────────────────
@@ -77,8 +78,9 @@ export class DatabaseStorage {
   }
 
   async searchItems(query: string): Promise<Item[]> {
+    const pattern = `%${escapeLikePattern(query)}%`;
     return await db.select().from(items).where(
-      sql`${items.name} ILIKE ${`%${query}%`} OR ${items.descriptor} ILIKE ${`%${query}%`}`
+      sql`(${items.name} ILIKE ${pattern} ESCAPE '\\' OR ${items.descriptor} ILIKE ${pattern} ESCAPE '\\')`
     );
   }
 
