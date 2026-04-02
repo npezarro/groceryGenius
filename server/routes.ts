@@ -363,9 +363,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         weights,
         userHasMembership
       );
-      
+
       res.json(tripPlans);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
       console.error("Trip planning error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Trip planning failed" });
     }
