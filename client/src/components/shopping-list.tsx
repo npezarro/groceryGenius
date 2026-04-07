@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { X, Upload, Plus, List, TrendingUp, GripVertical, Check, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Upload, Plus, List, TrendingUp, GripVertical, Check, Trash2, ChevronDown, ChevronUp, LayoutGrid, LayoutList, Apple, Milk, Beef, Croissant, Snowflake, Package, Cookie, Coffee, UtensilsCrossed, Home, Heart } from "lucide-react";
 import { ShoppingListItem } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
-import { matchItemId, parseCsvItems, parseBulkItems } from "@/lib/shopping-utils";
+import { matchItemId, parseCsvItems, parseBulkItems, groupItemsByCategory } from "@/lib/shopping-utils";
 
 const PriceSparkline = lazy(() => import("./price-sparkline"));
 const PriceComparison = lazy(() => import("./price-comparison"));
@@ -131,10 +131,118 @@ function DraggableItem({
   );
 }
 
+function StaticItem({
+  item,
+  itemId,
+  onRemove,
+  onToggleCheck,
+  userHasMembership,
+}: {
+  item: ShoppingListItem;
+  itemId: string | null;
+  onRemove: (id: string) => void;
+  onToggleCheck: (id: string) => void;
+  userHasMembership: boolean;
+}) {
+  const isChecked = item.checked ?? false;
+  const [showComparison, setShowComparison] = useState(false);
+
+  return (
+    <div
+      className={`p-3 rounded-md transition-opacity ${isChecked ? "bg-muted/50 opacity-60" : "bg-muted"}`}
+      data-testid={`item-${item.id}`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onToggleCheck(item.id)}
+            className={`flex items-center justify-center h-5 w-5 rounded border transition-colors ${
+              isChecked
+                ? "bg-primary border-primary text-primary-foreground"
+                : "border-border hover:border-primary"
+            }`}
+            aria-label={`Mark ${item.name} as ${isChecked ? "unchecked" : "checked"}`}
+          >
+            {isChecked && <Check size={12} />}
+          </button>
+          <span className={`text-sm font-medium ${isChecked ? "line-through text-muted-foreground" : ""}`}>
+            {item.name}
+          </span>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => onRemove(item.id)}
+          className="text-destructive hover:text-destructive/80 h-6 w-6 p-0"
+          aria-label={`Remove ${item.name}`}
+        >
+          <X size={14} />
+        </Button>
+      </div>
+
+      {!isChecked && itemId ? (
+        <>
+          <div className="flex items-center space-x-2">
+            <TrendingUp size={12} className="text-muted-foreground" />
+            <Suspense fallback={
+              <div className="flex items-center space-x-2 flex-1">
+                <Skeleton className="w-16 h-8 rounded" />
+                <Skeleton className="w-12 h-4 rounded" />
+              </div>
+            }>
+              <PriceSparkline
+                itemId={itemId}
+                itemName={item.name}
+                className="flex-1"
+                userHasMembership={userHasMembership}
+              />
+            </Suspense>
+          </div>
+          <button
+            onClick={() => setShowComparison(!showComparison)}
+            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 mt-1 transition-colors"
+            aria-expanded={showComparison}
+            aria-label={`Compare prices for ${item.name}`}
+          >
+            {showComparison ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            Compare prices
+          </button>
+          {showComparison && (
+            <Suspense fallback={<Skeleton className="h-20 w-full mt-1" />}>
+              <PriceComparison itemId={itemId} itemName={item.name} />
+            </Suspense>
+          )}
+        </>
+      ) : !isChecked ? (
+        <div className="text-xs text-muted-foreground flex items-center">
+          <TrendingUp size={12} className="mr-1 opacity-50" />
+          <span>Price history not available</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+  "Produce": Apple,
+  "Dairy & Eggs": Milk,
+  "Meat & Seafood": Beef,
+  "Bakery & Bread": Croissant,
+  "Frozen": Snowflake,
+  "Pantry": Package,
+  "Snacks": Cookie,
+  "Beverages": Coffee,
+  "Deli": UtensilsCrossed,
+  "Household": Home,
+  "Personal Care": Heart,
+  "Other": List,
+};
+
 export default function ShoppingList({ items, onItemsChange, userHasMembership = false }: ShoppingListProps) {
   const [newItemName, setNewItemName] = useState("");
   const [bulkItems, setBulkItems] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [groupByAisle, setGroupByAisle] = useState(false);
 
   // Fetch items from database to get IDs for price history
   const { data: dbItems } = useQuery({
@@ -324,17 +432,33 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
             <h3 className="text-sm font-medium text-muted-foreground">
               Current List ({items.length} items{checkedCount > 0 ? `, ${checkedCount} checked` : ""})
             </h3>
-            {checkedCount > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={clearChecked}
-                className="text-xs text-muted-foreground hover:text-destructive h-7"
-              >
-                <Trash2 size={12} className="mr-1" />
-                Clear checked
-              </Button>
-            )}
+            <div className="flex items-center gap-1">
+              {items.length >= 3 && (
+                <Button
+                  size="sm"
+                  variant={groupByAisle ? "default" : "ghost"}
+                  onClick={() => setGroupByAisle(!groupByAisle)}
+                  className="text-xs h-7 gap-1"
+                  aria-label={groupByAisle ? "Switch to flat list" : "Group by aisle"}
+                  aria-pressed={groupByAisle}
+                  data-testid="button-group-by-aisle"
+                >
+                  {groupByAisle ? <LayoutList size={12} /> : <LayoutGrid size={12} />}
+                  {groupByAisle ? "Flat list" : "By aisle"}
+                </Button>
+              )}
+              {checkedCount > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={clearChecked}
+                  className="text-xs text-muted-foreground hover:text-destructive h-7"
+                >
+                  <Trash2 size={12} className="mr-1" />
+                  Clear checked
+                </Button>
+              )}
+            </div>
           </div>
 
           {items.length === 0 ? (
@@ -342,6 +466,37 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
               <List size={48} className="mx-auto mb-2 opacity-50" />
               <p>No items in your shopping list</p>
               <p className="text-sm">Add items above to get started</p>
+            </div>
+          ) : groupByAisle ? (
+            <div className="space-y-4" data-testid="shopping-list-grouped">
+              {groupItemsByCategory(items).map(({ category, items: groupItems }) => {
+                const Icon = CATEGORY_ICONS[category] || List;
+                return (
+                  <div key={category}>
+                    <div className="flex items-center gap-2 mb-2 pb-1 border-b border-border">
+                      <Icon size={14} className="text-primary" />
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {category}
+                      </span>
+                      <span className="text-xs text-muted-foreground/60">
+                        ({groupItems.length})
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {groupItems.map((item) => (
+                        <StaticItem
+                          key={item.id}
+                          item={item}
+                          itemId={matchItemId(item.name, dbItems)}
+                          onRemove={removeItem}
+                          onToggleCheck={toggleCheck}
+                          userHasMembership={userHasMembership}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <Reorder.Group
