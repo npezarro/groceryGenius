@@ -109,6 +109,8 @@ function DraggableItem({
           <button
             onClick={() => setShowComparison(!showComparison)}
             className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 mt-1 transition-colors"
+            aria-expanded={showComparison}
+            aria-label={`Compare prices for ${item.name}`}
           >
             {showComparison ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             Compare prices

@@ -38,7 +38,7 @@ export default function MapView({ coordinates, stores, radius: _radius }: MapVie
               <p className="text-sm">Interactive Map with Store Locations</p>
               <p className="text-xs mt-1">Powered by Mapbox</p>
               {coordinates && (
-                <p className="text-xs mt-2 bg-white/80 rounded px-2 py-1">
+                <p className="text-xs mt-2 bg-card/80 rounded px-2 py-1">
                   Center: {coordinates.lat.toFixed(4)}, {coordinates.lng.toFixed(4)}
                 </p>
               )}
@@ -47,16 +47,16 @@ export default function MapView({ coordinates, stores, radius: _radius }: MapVie
           
           {/* Map Controls */}
           <div className="absolute top-4 right-4 space-y-2">
-            <Button size="sm" variant="outline" className="h-8 w-8 p-0 bg-white/90 hover:bg-white" aria-label="Zoom in">
+            <Button size="sm" variant="outline" className="h-8 w-8 p-0 bg-card/90 hover:bg-card" aria-label="Zoom in">
               <Plus size={14} />
             </Button>
-            <Button size="sm" variant="outline" className="h-8 w-8 p-0 bg-white/90 hover:bg-white" aria-label="Zoom out">
+            <Button size="sm" variant="outline" className="h-8 w-8 p-0 bg-card/90 hover:bg-card" aria-label="Zoom out">
               <Minus size={14} />
             </Button>
           </div>
 
           {/* Legend */}
-          <div className="absolute bottom-4 left-4 bg-white/95 border border-border rounded p-3 shadow-sm">
+          <div className="absolute bottom-4 left-4 bg-card/95 border border-border rounded p-3 shadow-sm">
             <div className="space-y-1 text-xs">
               <div className="flex items-center">
                 <div className="w-3 h-3 bg-primary rounded-full mr-2"></div>
