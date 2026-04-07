@@ -64,6 +64,8 @@ export default function ListSelector({
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          aria-expanded={isOpen}
+          aria-label={`Switch shopping list, current: ${activeListName}`}
         >
           <span className="truncate max-w-[200px]">{activeListName}</span>
           <ChevronDown size={14} className={`transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -97,10 +99,10 @@ export default function ListSelector({
                     className="h-6 text-sm px-1"
                     autoFocus
                   />
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={handleConfirmRename}>
+                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={handleConfirmRename} aria-label="Confirm rename">
                     <Check size={12} />
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setEditingId(null)}>
+                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setEditingId(null)} aria-label="Cancel rename">
                     <X size={12} />
                   </Button>
                 </div>
@@ -125,6 +127,7 @@ export default function ListSelector({
                       variant="ghost"
                       className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
                       onClick={() => handleDelete(list.id)}
+                      aria-label={`Delete list ${list.name}`}
                     >
                       <Trash2 size={12} />
                     </Button>
@@ -148,7 +151,7 @@ export default function ListSelector({
                   className="h-6 text-sm px-1"
                   autoFocus
                 />
-                <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={handleCreate}>
+                <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={handleCreate} aria-label="Confirm new list">
                   <Check size={12} />
                 </Button>
               </div>
