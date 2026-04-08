@@ -17,6 +17,7 @@ import {
   matchItems,
   indexPrices,
   generateCandidatePlans,
+  type StoreWithId,
 } from "./lib/trip-planner";
 import { geocodeAddress } from "./lib/geocoding";
 import { deduplicateLatestByStore, parseDaysParam } from "./lib/price-queries";
@@ -51,7 +52,7 @@ async function generateTripPlans(
   const { pricesByStore, itemsByStore } = indexPrices(storesWithCoords, allPrices);
 
   // Build plan helper
-  const makePlan = (planStores: typeof storesWithCoords) =>
+  const makePlan = (planStores: StoreWithId[]) =>
     buildPlan(planStores, matchedItems, pricesByStore, itemsByStore, userLat, userLng, userHasMembership);
 
   // Generate, score, and rank candidate plans
