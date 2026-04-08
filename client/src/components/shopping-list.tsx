@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Reorder, useDragControls } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -243,6 +243,8 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
   const [bulkItems, setBulkItems] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [groupByAisle, setGroupByAisle] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch items from database to get IDs for price history
   const { data: dbItems } = useQuery({
@@ -254,6 +256,17 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
     }
   });
 
+  const suggestions = useMemo(() => {
+    if (!showSuggestions || newItemName.length < 2 || !dbItems) return [];
+    const query = newItemName.toLowerCase();
+    return (dbItems as Array<{ id: string; name: string }>)
+      .filter(item =>
+        item.name.toLowerCase().includes(query) &&
+        !items.some(existing => existing.name.toLowerCase() === item.name.toLowerCase())
+      )
+      .slice(0, 8);
+  }, [showSuggestions, newItemName, dbItems, items]);
+
   const addItem = () => {
     if (newItemName.trim()) {
       const newItem: ShoppingListItem = {
@@ -264,6 +277,17 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
       setNewItemName("");
     }
   };
+
+  const selectSuggestion = useCallback((name: string) => {
+    const newItem: ShoppingListItem = {
+      id: Date.now().toString(),
+      name,
+    };
+    onItemsChange([...items, newItem]);
+    setNewItemName("");
+    setShowSuggestions(false);
+    setActiveIndex(-1);
+  }, [items, onItemsChange]);
 
   const removeItem = (id: string) => {
     onItemsChange(items.filter(item => item.id !== id));
@@ -341,22 +365,50 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
         <div className="mb-4">
           <div className="relative">
             <Input
+              ref={inputRef}
               type="text"
               placeholder="Add item (e.g., organic bananas, milk...)"
               value={newItemName}
               onChange={(e) => {
                 setNewItemName(e.target.value);
                 setShowSuggestions(e.target.value.length >= 2);
+                setActiveIndex(-1);
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') { addItem(); setShowSuggestions(false); }
-                if (e.key === 'Escape') setShowSuggestions(false);
+                if (suggestions.length > 0 && showSuggestions) {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setActiveIndex(prev => prev < suggestions.length - 1 ? prev + 1 : 0);
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setActiveIndex(prev => prev > 0 ? prev - 1 : suggestions.length - 1);
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (activeIndex >= 0) {
+                      selectSuggestion(suggestions[activeIndex].name);
+                    } else {
+                      addItem();
+                      setShowSuggestions(false);
+                    }
+                  } else if (e.key === 'Escape') {
+                    setShowSuggestions(false);
+                    setActiveIndex(-1);
+                  }
+                } else {
+                  if (e.key === 'Enter') { addItem(); setShowSuggestions(false); }
+                  if (e.key === 'Escape') setShowSuggestions(false);
+                }
               }}
               onFocus={() => setShowSuggestions(newItemName.length >= 2)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              onBlur={() => setTimeout(() => { setShowSuggestions(false); setActiveIndex(-1); }, 200)}
               className="pr-10"
               data-testid="input-new-item"
               autoComplete="off"
+              role="combobox"
+              aria-expanded={showSuggestions && suggestions.length > 0}
+              aria-controls="item-suggestions"
+              aria-autocomplete="list"
+              aria-activedescendant={activeIndex >= 0 ? `suggestion-${suggestions[activeIndex]?.id}` : undefined}
             />
             <Button
               size="sm"
@@ -369,40 +421,38 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
             </Button>
 
             {/* Autocomplete suggestions */}
-            {showSuggestions && newItemName.length >= 2 && dbItems && (() => {
-              const query = newItemName.toLowerCase();
-              const suggestions = (dbItems as Array<{ id: string; name: string }>)
-                .filter(item =>
-                  item.name.toLowerCase().includes(query) &&
-                  !items.some(existing => existing.name.toLowerCase() === item.name.toLowerCase())
-                )
-                .slice(0, 8);
-
-              if (suggestions.length === 0) return null;
-
-              return (
-                <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  {suggestions.map(suggestion => (
-                    <button
-                      key={suggestion.id}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-lg last:rounded-b-lg"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        const newItem: ShoppingListItem = {
-                          id: Date.now().toString(),
-                          name: suggestion.name,
-                        };
-                        onItemsChange([...items, newItem]);
-                        setNewItemName("");
-                        setShowSuggestions(false);
-                      }}
-                    >
-                      {suggestion.name}
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
+            {showSuggestions && suggestions.length > 0 && (
+              <ul
+                id="item-suggestions"
+                role="listbox"
+                aria-label="Item suggestions"
+                className="absolute z-30 top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto"
+              >
+                {suggestions.map((suggestion, index) => (
+                  <li
+                    key={suggestion.id}
+                    id={`suggestion-${suggestion.id}`}
+                    role="option"
+                    aria-selected={index === activeIndex}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg cursor-default ${
+                      index === activeIndex ? "bg-muted" : "hover:bg-muted"
+                    }`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      selectSuggestion(suggestion.name);
+                    }}
+                    onMouseEnter={() => setActiveIndex(index)}
+                  >
+                    {suggestion.name}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="sr-only" aria-live="polite" aria-atomic="true">
+              {showSuggestions && suggestions.length > 0
+                ? `${suggestions.length} suggestion${suggestions.length !== 1 ? "s" : ""} available`
+                : ""}
+            </div>
           </div>
         </div>
 
@@ -471,14 +521,15 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
             <div className="space-y-4" data-testid="shopping-list-grouped">
               {groupItemsByCategory(items).map(({ category, items: groupItems }) => {
                 const Icon = CATEGORY_ICONS[category] || List;
+                const groupId = `category-${category.toLowerCase().replace(/\s+/g, "-")}`;
                 return (
-                  <div key={category}>
+                  <div key={category} role="group" aria-labelledby={groupId}>
                     <div className="flex items-center gap-2 mb-2 pb-1 border-b border-border">
-                      <Icon size={14} className="text-primary" />
-                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <Icon size={14} className="text-primary" aria-hidden="true" />
+                      <span id={groupId} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         {category}
                       </span>
-                      <span className="text-xs text-muted-foreground/60">
+                      <span className="text-xs text-muted-foreground/60" aria-label={`${groupItems.length} items`}>
                         ({groupItems.length})
                       </span>
                     </div>
