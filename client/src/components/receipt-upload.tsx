@@ -254,7 +254,14 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
                         {ocrStatus === "loading" ? "Loading OCR engine..." : `Scanning... ${ocrProgress}%`}
                       </p>
                       {ocrStatus === "scanning" && (
-                        <div className="w-full bg-muted rounded-full h-1.5 mt-1">
+                        <div
+                          className="w-full bg-muted rounded-full h-1.5 mt-1"
+                          role="progressbar"
+                          aria-valuenow={ocrProgress}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label="OCR scanning progress"
+                        >
                           <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${ocrProgress}%` }} />
                         </div>
                       )}
