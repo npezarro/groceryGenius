@@ -214,6 +214,7 @@ export default function Home() {
         </div>
       </header>
 
+      <main id="main-content" tabIndex={-1}>
       <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
           <div className="space-y-6">
@@ -448,6 +449,7 @@ export default function Home() {
           </div>
         )}
       </div>
+      </main>
     </div>
   );
 }
