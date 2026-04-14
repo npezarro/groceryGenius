@@ -79,7 +79,7 @@ export default function ListSelector({
       </div>
 
       {isOpen && (
-        <div className="absolute z-20 top-8 left-0 w-64 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1">
+        <div className="absolute z-20 top-8 left-0 w-64 bg-card border border-border rounded-lg shadow-lg p-2 space-y-1" role="listbox" aria-label="Shopping lists">
           {lists.map((list) => (
             <div
               key={list.id}
@@ -115,6 +115,7 @@ export default function ListSelector({
                       setIsOpen(false);
                     }}
                     onDoubleClick={() => handleStartRename(list)}
+                    aria-label={`Switch to ${list.name}`}
                   >
                     {list.name}
                   </button>
