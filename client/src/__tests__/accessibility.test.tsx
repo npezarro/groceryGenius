@@ -54,10 +54,10 @@ describe("Skip-to-content link", () => {
 // --- List selector accessibility tests ---
 
 vi.mock("@/components/ui/button", () => ({
-  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+  Button: ({ children, ...props }: Record<string, unknown> & { children?: React.ReactNode }) => <button {...(props as React.ButtonHTMLAttributes<HTMLButtonElement>)}>{children}</button>,
 }));
 vi.mock("@/components/ui/input", () => ({
-  Input: (props: any) => <input {...props} />,
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 vi.mock("lucide-react", () => ({
   ChevronDown: () => <span data-testid="chevron-down" />,
@@ -74,7 +74,7 @@ import userEvent from "@testing-library/user-event";
 const mockLists = [
   { id: "1", name: "Weekly Groceries", items: ["milk", "eggs"] },
   { id: "2", name: "Party Supplies", items: ["chips"] },
-] as any;
+] as Array<{ id: string; name: string; items: string[] }>;
 
 const listProps = {
   lists: mockLists,
