@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // mock that records call args and returns configurable results.
 
 function createChain(terminal: () => unknown) {
-  const chain: Record<string, any> = {};
+  const chain: Record<string, (...args: unknown[]) => unknown> = {};
   const methods = [
     "select", "from", "where", "insert", "values", "returning",
     "update", "set", "delete", "orderBy", "limit", "innerJoin",
@@ -17,7 +17,7 @@ function createChain(terminal: () => unknown) {
   // Terminal method — resolves the chain to a value
   chain._resolve = terminal;
   // Make the chain thenable so `await db.select()...` works
-  chain.then = (resolve: any, reject: any) => {
+  chain.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => {
     try {
       const val = chain._resolve();
       return Promise.resolve(val).then(resolve, reject);
@@ -230,7 +230,7 @@ describe("DatabaseStorage — Items", () => {
         }
         if (prop === "0") return created;
         if (prop === "then") return undefined; // not thenable
-        return (target as any)[prop];
+        return (target as Record<string, unknown>)[prop as string];
       },
     });
     // This test is tricky because the mock returns the same value for both awaits.
