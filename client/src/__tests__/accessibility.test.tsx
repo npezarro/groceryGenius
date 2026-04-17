@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import type { SavedShoppingList } from "../lib/types";
 
 // --- Skip-to-content link tests (App.tsx) ---
 
@@ -71,10 +72,10 @@ vi.mock("lucide-react", () => ({
 import ListSelector from "../components/list-selector";
 import userEvent from "@testing-library/user-event";
 
-const mockLists = [
-  { id: "1", name: "Weekly Groceries", items: ["milk", "eggs"] },
-  { id: "2", name: "Party Supplies", items: ["chips"] },
-] as Array<{ id: string; name: string; items: string[] }>;
+const mockLists: SavedShoppingList[] = [
+  { id: "1", name: "Weekly Groceries", items: [{ id: "i1", name: "milk" }, { id: "i2", name: "eggs" }], userId: null, createdAt: null, updatedAt: null },
+  { id: "2", name: "Party Supplies", items: [{ id: "i3", name: "chips" }], userId: null, createdAt: null, updatedAt: null },
+];
 
 const listProps = {
   lists: mockLists,
