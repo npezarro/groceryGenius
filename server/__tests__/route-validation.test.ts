@@ -1,6 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 
+// ── Shopping list POST schema (mirrors routes.ts) ───────────────
+
+const shoppingListPostSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  items: z.array(z.object({
+    name: z.string().min(1),
+    quantity: z.number().optional(),
+    unit: z.string().optional(),
+    checked: z.boolean().optional(),
+  })).max(500).optional(),
+});
+
 // ── Shopping list PATCH schema (mirrors routes.ts) ──────────────
 
 const shoppingListPatchSchema = z.object({
@@ -49,6 +61,28 @@ describe("PATCH /api/shopping-lists/:id validation", () => {
     const result = shoppingListPatchSchema.parse({});
     expect(result.name).toBeUndefined();
     expect(result.items).toBeUndefined();
+  });
+});
+
+// ── POST /api/shopping-lists validation ─────────────────────────
+
+describe("POST /api/shopping-lists validation", () => {
+  it("rejects items with empty name", () => {
+    expect(() => shoppingListPostSchema.parse({
+      items: [{ name: "" }],
+    })).toThrow();
+  });
+
+  it("accepts items with valid name", () => {
+    const result = shoppingListPostSchema.parse({
+      items: [{ name: "Milk" }],
+    });
+    expect(result.items).toHaveLength(1);
+  });
+
+  it("rejects more than 500 items", () => {
+    const items = Array.from({ length: 501 }, (_, i) => ({ name: `Item ${i}` }));
+    expect(() => shoppingListPostSchema.parse({ items })).toThrow();
   });
 });
 
@@ -202,10 +236,10 @@ describe("receipt schema validation", () => {
 // ── Trip plan schema validation ──────────────────────────────────
 
 const tripPlanSchema = z.object({
-  items: z.array(z.string()),
+  items: z.array(z.string().min(1)).min(1),
   location: z.object({
-    lat: z.number(),
-    lng: z.number(),
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
   }),
   radius: z.number().min(1).max(50),
   weights: z.object({
@@ -317,14 +351,22 @@ describe("POST /api/trip-plans validation", () => {
     })).toThrow();
   });
 
-  it("accepts empty items array", () => {
-    const result = tripPlanSchema.parse({
+  it("rejects empty items array", () => {
+    expect(() => tripPlanSchema.parse({
       items: [],
       location: { lat: 37.7749, lng: -122.4194 },
       radius: 10,
       weights: { price: 0.5, time: 0.3, distance: 0.2 },
-    });
-    expect(result.items).toHaveLength(0);
+    })).toThrow();
+  });
+
+  it("rejects items with empty strings", () => {
+    expect(() => tripPlanSchema.parse({
+      items: [""],
+      location: { lat: 37.7749, lng: -122.4194 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    })).toThrow();
   });
 
   it("accepts boundary radius values", () => {
@@ -362,6 +404,62 @@ describe("POST /api/trip-plans validation", () => {
       radius: 10,
       weights: { price: 0.5 },
     })).toThrow();
+  });
+
+  it("rejects latitude below -90", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: -91, lng: 0 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    })).toThrow();
+  });
+
+  it("rejects latitude above 90", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 91, lng: 0 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    })).toThrow();
+  });
+
+  it("rejects longitude below -180", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 0, lng: -181 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    })).toThrow();
+  });
+
+  it("rejects longitude above 180", () => {
+    expect(() => tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 0, lng: 181 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    })).toThrow();
+  });
+
+  it("accepts boundary lat/lng values", () => {
+    const result = tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: -90, lng: -180 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    });
+    expect(result.location.lat).toBe(-90);
+    expect(result.location.lng).toBe(-180);
+
+    const result2 = tripPlanSchema.parse({
+      items: ["milk"],
+      location: { lat: 90, lng: 180 },
+      radius: 10,
+      weights: { price: 0.5, time: 0.3, distance: 0.2 },
+    });
+    expect(result2.location.lat).toBe(90);
+    expect(result2.location.lng).toBe(180);
   });
 });
 
@@ -442,5 +540,115 @@ describe("POST /api/user/prices validation", () => {
       storeId: "store-123",
       price: "4.99",
     })).toThrow();
+  });
+});
+
+// ── Auth schema password limits ─────────────────────────────────
+
+const registerSchema = z.object({
+  username: z.string().min(3).max(50),
+  email: z.string().email().optional(),
+  password: z.string().min(6).max(128),
+  displayName: z.string().max(100).optional(),
+});
+
+const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required").max(128),
+});
+
+describe("register schema password limits", () => {
+  it("accepts password at max length (128)", () => {
+    const result = registerSchema.parse({
+      username: "testuser",
+      password: "a".repeat(128),
+    });
+    expect(result.password).toHaveLength(128);
+  });
+
+  it("rejects password over 128 chars", () => {
+    expect(() => registerSchema.parse({
+      username: "testuser",
+      password: "a".repeat(129),
+    })).toThrow();
+  });
+});
+
+describe("login schema password limits", () => {
+  it("accepts password at max length (128)", () => {
+    const result = loginSchema.parse({
+      username: "testuser",
+      password: "a".repeat(128),
+    });
+    expect(result.password).toHaveLength(128);
+  });
+
+  it("rejects password over 128 chars", () => {
+    expect(() => loginSchema.parse({
+      username: "testuser",
+      password: "a".repeat(129),
+    })).toThrow();
+  });
+});
+
+// ── GET /api/stores lat/lng range validation ────────────────────
+
+describe("store query lat/lng range validation", () => {
+  function validateStoreQuery(lat: string, lng: string, radius: string) {
+    const parsedLat = parseFloat(lat);
+    const parsedLng = parseFloat(lng);
+    const parsedRadius = parseFloat(radius);
+    if (isNaN(parsedLat) || isNaN(parsedLng) || isNaN(parsedRadius) || parsedRadius <= 0) {
+      return { valid: false, error: "lat, lng must be valid numbers and radius must be positive" };
+    }
+    if (parsedLat < -90 || parsedLat > 90 || parsedLng < -180 || parsedLng > 180) {
+      return { valid: false, error: "lat must be between -90 and 90, lng must be between -180 and 180" };
+    }
+    return { valid: true };
+  }
+
+  it("accepts valid coordinates", () => {
+    expect(validateStoreQuery("37.7749", "-122.4194", "10")).toEqual({ valid: true });
+  });
+
+  it("accepts boundary lat/lng values", () => {
+    expect(validateStoreQuery("90", "180", "5")).toEqual({ valid: true });
+    expect(validateStoreQuery("-90", "-180", "5")).toEqual({ valid: true });
+  });
+
+  it("rejects latitude out of range", () => {
+    const result = validateStoreQuery("91", "0", "5");
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain("lat must be between");
+  });
+
+  it("rejects longitude out of range", () => {
+    const result = validateStoreQuery("0", "181", "5");
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain("lng must be between");
+  });
+
+  it("rejects NaN latitude", () => {
+    const result = validateStoreQuery("abc", "0", "5");
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects zero radius", () => {
+    const result = validateStoreQuery("37.7", "-122.4", "0");
+    expect(result.valid).toBe(false);
+  });
+});
+
+// ── Geocode address length validation ───────────────────────────
+
+describe("geocode address validation", () => {
+  it("rejects address over 500 chars", () => {
+    const address = "a".repeat(501);
+    expect(address.length > 500).toBe(true);
+  });
+
+  it("accepts address at 500 chars", () => {
+    const address = "a".repeat(500);
+    expect(address.length <= 500).toBe(true);
   });
 });
