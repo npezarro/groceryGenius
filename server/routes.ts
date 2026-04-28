@@ -120,11 +120,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const body = z.object({
         name: z.string().min(1).max(200).optional(),
         items: z.array(z.object({
-          name: z.string(),
+          name: z.string().min(1),
           quantity: z.number().optional(),
           unit: z.string().optional(),
           checked: z.boolean().optional(),
-        })).optional(),
+        })).max(500).optional(),
       }).parse(req.body);
 
       const shoppingList = await storage.createShoppingList({
@@ -209,6 +209,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const parsedRadius = parseFloat(radius as string);
         if (isNaN(parsedLat) || isNaN(parsedLng) || isNaN(parsedRadius) || parsedRadius <= 0) {
           return res.status(400).json({ error: "lat, lng must be valid numbers and radius must be positive" });
+        }
+        if (parsedLat < -90 || parsedLat > 90 || parsedLng < -180 || parsedLng > 180) {
+          return res.status(400).json({ error: "lat must be between -90 and 90, lng must be between -180 and 180" });
         }
         const stores = await storage.getStoresWithinRadius(parsedLat, parsedLng, parsedRadius);
         res.json(stores);
@@ -321,8 +324,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.post("/api/geocode", async (req: Request, res: Response) => {
     try {
       const { address } = req.body;
-      if (!address) {
+      if (!address || typeof address !== "string") {
         return res.status(400).json({ error: "Address is required" });
+      }
+      if (address.length > 500) {
+        return res.status(400).json({ error: "Address must be 500 characters or fewer" });
       }
       
       const coordinates = await geocodeAddress(address);
@@ -340,10 +346,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.post("/api/trip-plans", async (req: Request, res: Response) => {
     try {
       const schema = z.object({
-        items: z.array(z.string()),
+        items: z.array(z.string().min(1)).min(1),
         location: z.object({
-          lat: z.number(),
-          lng: z.number()
+          lat: z.number().min(-90).max(90),
+          lng: z.number().min(-180).max(180)
         }),
         radius: z.number().min(1).max(50),
         weights: z.object({
@@ -485,13 +491,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const registerSchema = z.object({
     username: z.string().min(3).max(50),
     email: z.string().email().optional(),
-    password: z.string().min(6),
+    password: z.string().min(6).max(128),
     displayName: z.string().max(100).optional(),
   });
 
   const loginSchema = z.object({
     username: z.string().min(1, "Username is required"),
-    password: z.string().min(1, "Password is required"),
+    password: z.string().min(1, "Password is required").max(128),
   });
 
   router.post("/api/auth/register", validateInput(registerSchema), async (req: Request, res: Response) => {

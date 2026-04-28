@@ -217,13 +217,13 @@ describe("validateInput middleware", () => {
   const registerSchema = z.object({
     username: z.string().min(3).max(50),
     email: z.string().email().optional(),
-    password: z.string().min(6),
+    password: z.string().min(6).max(128),
     displayName: z.string().max(100).optional(),
   });
 
   const loginSchema = z.object({
     username: z.string().min(1, "Username is required"),
-    password: z.string().min(1, "Password is required"),
+    password: z.string().min(1, "Password is required").max(128),
   });
 
   let app: express.Express;
@@ -277,6 +277,32 @@ describe("validateInput middleware", () => {
   it("rejects login with missing username", async () => {
     const res = await request(app, "POST", "/login", {
       password: "somepassword",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeDefined();
+  });
+
+  it("rejects registration with password over 128 chars", async () => {
+    const res = await request(app, "POST", "/register", {
+      username: "testuser",
+      password: "a".repeat(129),
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeDefined();
+  });
+
+  it("accepts registration with password at 128 chars", async () => {
+    const res = await request(app, "POST", "/register", {
+      username: "testuser",
+      password: "a".repeat(128),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects login with password over 128 chars", async () => {
+    const res = await request(app, "POST", "/login", {
+      username: "testuser",
+      password: "a".repeat(129),
     });
     expect(res.status).toBe(400);
     expect(res.body.error).toBeDefined();
