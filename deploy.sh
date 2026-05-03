@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-cd /opt/grocerygenius
+DEPLOY_DIR="${DEPLOY_DIR:-$(cd "$(dirname "$0")" && pwd)}"
+cd "$DEPLOY_DIR"
 
 echo "Building with BASE_PATH=/grocerygenius..."
 npm run build:deploy
@@ -16,7 +17,8 @@ pm2 restart grocerygenius
 sleep 2
 
 # Verify the site responds
-if curl -sf https://pezant.ca/grocerygenius/ > /dev/null; then
+HEALTH_URL="${HEALTH_URL:-${APP_URL:-http://localhost:8080}/}"
+if curl -sf "$HEALTH_URL" > /dev/null; then
   echo "Deploy verified: site is live"
 else
   echo "WARNING: Site not responding after deploy"
