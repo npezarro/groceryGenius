@@ -25,12 +25,14 @@ function DraggableItem({
   itemId,
   onRemove,
   onToggleCheck,
+  onMoveItem,
   userHasMembership,
 }: {
   item: ShoppingListItem;
   itemId: string | null;
   onRemove: (id: string) => void;
   onToggleCheck: (id: string) => void;
+  onMoveItem: (id: string, direction: "up" | "down") => void;
   userHasMembership: boolean;
 }) {
   const controls = useDragControls();
@@ -55,8 +57,12 @@ function DraggableItem({
           <div
             role="button"
             tabIndex={0}
-            aria-label={`Drag to reorder ${item.name}`}
+            aria-label={`Reorder ${item.name}. Use arrow keys to move.`}
             onPointerDown={(e) => controls.start(e)}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowUp") { e.preventDefault(); onMoveItem(item.id, "up"); }
+              if (e.key === "ArrowDown") { e.preventDefault(); onMoveItem(item.id, "down"); }
+            }}
             className="cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground transition-colors"
           >
             <GripVertical size={16} />
@@ -303,6 +309,16 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
     onItemsChange([...unchecked, ...checked]);
   };
 
+  const moveItem = useCallback((id: string, direction: "up" | "down") => {
+    const index = items.findIndex(i => i.id === id);
+    if (index < 0) return;
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= items.length) return;
+    const next = [...items];
+    [next[index], next[target]] = [next[target], next[index]];
+    onItemsChange(next);
+  }, [items, onItemsChange]);
+
   const clearChecked = () => {
     onItemsChange(items.filter(item => !item.checked));
   };
@@ -529,8 +545,9 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
                       <span id={groupId} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         {category}
                       </span>
-                      <span className="text-xs text-muted-foreground/60" aria-label={`${groupItems.length} items`}>
-                        ({groupItems.length})
+                      <span className="text-xs text-muted-foreground/60">
+                        <span className="sr-only">{groupItems.length} items</span>
+                        <span aria-hidden="true">({groupItems.length})</span>
                       </span>
                     </div>
                     <div className="space-y-2">
@@ -564,6 +581,7 @@ export default function ShoppingList({ items, onItemsChange, userHasMembership =
                   itemId={matchItemId(item.name, dbItems)}
                   onRemove={removeItem}
                   onToggleCheck={toggleCheck}
+                  onMoveItem={moveItem}
                   userHasMembership={userHasMembership}
                 />
               ))}

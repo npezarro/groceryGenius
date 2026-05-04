@@ -124,11 +124,12 @@ export default function LocationPreferences({
 
         {/* Location Input */}
         <form onSubmit={handleLocationSubmit} className="mb-4">
-          <label className="block text-sm font-medium text-muted-foreground mb-2">
+          <label htmlFor="starting-location" className="block text-sm font-medium text-muted-foreground mb-2">
             Starting Location
           </label>
           <div className="relative">
             <Input
+              id="starting-location"
               type="text"
               placeholder="Enter address or ZIP code"
               value={location}
