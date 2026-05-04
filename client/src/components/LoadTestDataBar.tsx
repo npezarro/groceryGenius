@@ -65,8 +65,8 @@ export default function LoadTestDataBar() {
         {stats ? `Stores: ${stats.storeCount} • Items: ${stats.itemCount} • Prices: ${stats.priceCount}` : "—"}
         {message ? `  —  ${message}` : ""}
       </div>
-      <button onClick={() => setVisible(false)} style={{ padding: "4px 8px", fontSize: 14, cursor: "pointer", background: "transparent", border: "none" }} title="Hide">
-        ×
+      <button onClick={() => setVisible(false)} style={{ padding: "4px 8px", fontSize: 14, cursor: "pointer", background: "transparent", border: "none" }} aria-label="Close developer tools panel" title="Hide">
+        <span aria-hidden="true">&times;</span>
       </button>
     </div>
   );

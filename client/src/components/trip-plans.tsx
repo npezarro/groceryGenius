@@ -280,7 +280,7 @@ export default function TripPlans({ tripPlans, isLoading, onSelectPlan, userCoor
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div className="cursor-default">
+                          <div className="cursor-default" tabIndex={0} role="note" aria-label={`Score: ${Math.round(plan.score)} out of 100`}>
                             <div className={`text-sm font-medium flex items-center justify-center ${getSemanticLabel(plan, tripPlans).color}`}>
                               {(() => {
                                 const { label, icon: Icon } = getSemanticLabel(plan, tripPlans);
