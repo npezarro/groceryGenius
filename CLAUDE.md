@@ -10,6 +10,11 @@
 - `npm run dev` — dev server on port 5000
 - `npx vitest` — run tests
 
+## Fonts
+- **Self-hosted** via `@fontsource` (no CDN). Imports in `client/src/main.tsx`.
+- Fraunces (headings) + IBM Plex Sans (body), weights 400-700.
+- To add a font: `npm install @fontsource/<name>`, import weight CSS in `main.tsx`.
+
 ## Architecture
 - **Base path**: `/grocerygenius`
 - **Port**: 8080 (production), 5000 (dev)
