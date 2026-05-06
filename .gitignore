@@ -9,3 +9,4 @@ vite.config.ts.*
 core.env.*
 *.pem
 *.key
+.claude/
