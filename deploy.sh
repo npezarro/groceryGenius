@@ -4,6 +4,9 @@ set -euo pipefail
 DEPLOY_DIR="${DEPLOY_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 cd "$DEPLOY_DIR"
 
+echo "Installing dependencies..."
+npm ci
+
 echo "Building with BASE_PATH=/grocerygenius..."
 npm run build:deploy
 
