@@ -20,7 +20,13 @@ export function parseCSV(csvText: string): string[][] {
       const char = line[i];
 
       if (char === '"') {
-        inQuotes = !inQuotes;
+        if (inQuotes && line[i + 1] === '"') {
+          // Escaped quote ("") inside a quoted field — emit a literal quote and skip ahead
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
       } else if (char === ',' && !inQuotes) {
         result.push(current.trim());
         current = '';
