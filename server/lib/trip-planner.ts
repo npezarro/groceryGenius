@@ -61,6 +61,13 @@ export function calculateEffectivePrice(price: Price, userHasMembership: boolean
   // Apply promotional pricing if active
   if (isActivePromotion) {
     effectivePrice = Math.min(effectivePrice, currentPrice);
+  } else if (price.isPromotion && price.originalPrice) {
+    // Promotion has expired — revert to the pre-promotional price so stale
+    // sale prices stored in `price` are not used.
+    const originalPrice = parseFloat(price.originalPrice);
+    if (!isNaN(originalPrice)) {
+      effectivePrice = originalPrice;
+    }
   }
 
   // Apply member pricing if user has membership and member price exists
@@ -84,16 +91,18 @@ export interface Coordinates {
 /** Approximate distance in miles from a point to a store (Euclidean × 69). */
 export function distToStore(store: Coordinates, userLat: number, userLng: number): number {
   if (store.lat == null || store.lng == null) return Infinity;
+  const dlng = (userLng - store.lng) * Math.cos(userLat * Math.PI / 180);
   return Math.sqrt(
-    Math.pow(userLat - store.lat, 2) + Math.pow(userLng - store.lng, 2)
+    Math.pow(userLat - store.lat, 2) + Math.pow(dlng, 2)
   ) * 69;
 }
 
 /** Approximate distance in miles between two stores (Euclidean × 69). */
 export function distBetweenStores(a: Coordinates, b: Coordinates): number {
   if (a.lat == null || a.lng == null || b.lat == null || b.lng == null) return Infinity;
+  const dlng = (a.lng - b.lng) * Math.cos(a.lat * Math.PI / 180);
   return Math.sqrt(
-    Math.pow(a.lat - b.lat, 2) + Math.pow(a.lng - b.lng, 2)
+    Math.pow(a.lat - b.lat, 2) + Math.pow(dlng, 2)
   ) * 69;
 }
 
