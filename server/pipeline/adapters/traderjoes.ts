@@ -161,8 +161,11 @@ export class TraderJoesAdapter implements SourceAdapter {
   }
 }
 
-function parseSize(size: string | undefined): number | undefined {
-  if (!size) return undefined;
+function parseSize(size: string | number | undefined): number | undefined {
+  if (size === undefined || size === null) return undefined;
+  if (typeof size === "number") return size;
+  if (typeof size !== "string") return undefined;
+
   const match = size.match(/^(\d+(?:\.\d+)?)\s*/);
   return match ? parseFloat(match[1]) : undefined;
 }

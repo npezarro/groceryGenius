@@ -781,6 +781,37 @@ describe("Trader Joe's Adapter — fetchProducts", () => {
     // Should fall back to the static category name (e.g., "Produce" for category id "8")
     expect(products[0].category).toBeDefined();
   });
+
+  it("handles numeric sales_size gracefully", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        data: {
+          products: {
+            items: [
+              {
+                sku: "TJ-NUMERIC",
+                item_title: "Numeric Size Item",
+                sales_size: 123 as any,
+                sales_uom_description: "oz",
+                retail_price: 2.99,
+                fun_tags: [],
+                category_hierarchy: [],
+                primary_image: "",
+                primary_image_meta: { url: "" },
+              },
+            ],
+            total_count: 1,
+            page_info: { total_pages: 1 },
+          },
+        },
+      }),
+    } as Response);
+
+    const products = await adapter.fetchProducts("any", "any");
+    expect(products).toHaveLength(8); // 1 per category loop
+    expect(products[0].quantity).toBe(123);
+  });
 });
 
 // ─── Safeway Adapter — HTML Parsing ────────────────────────────────
