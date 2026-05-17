@@ -946,93 +946,15 @@ describe("Whole Foods Adapter — fetchProducts", () => {
     vi.unstubAllGlobals();
   });
 
-  it("extracts products from JSON-LD in HTML", async () => {
-    const html = `<html><head>
-      <script type="application/ld+json">
-        {"@type": "Product", "name": "Organic Avocados 16 oz",
-         "sku": "WF-AVO-001",
-         "offers": {"price": "3.49"}}
-      </script>
-    </head><body></body></html>`;
-
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      text: () => Promise.resolve(html),
-    } as Response);
-
-    const products = await adapter.fetchProducts("any", "any");
-    const avocados = products.find(p => p.name.includes("Avocados"));
-    expect(avocados).toBeDefined();
-    expect(avocados!.price).toBe(3.49);
-    expect(avocados!.unit).toBe("oz");
-    expect(avocados!.sourceProductId).toBe("WF-AVO-001");
-  });
-
-  it("extracts products from Amazon-style product cards", async () => {
-    const html = `<html><body>
-      <div data-component-type="s-search-result" data-asin="B0ABC123">
-        <h2><a><span>Organic Chicken Breast 1 lb</span></a></h2>
-        <span class="a-price-whole">8</span>
-        <span class="a-price-fraction">99</span>
-      </div>
-    </body></html>`;
-
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      text: () => Promise.resolve(html),
-    } as Response);
-
-    const products = await adapter.fetchProducts("any", "any");
-    const chicken = products.find(p => p.name.includes("Chicken Breast"));
-    expect(chicken).toBeDefined();
-    expect(chicken!.price).toBe(8.99);
-    expect(chicken!.unit).toBe("lb");
-    expect(chicken!.sourceProductId).toBe("B0ABC123");
-  });
-
-  it("extracts price from a-offscreen when price parts are missing", async () => {
-    const html = `<html><body>
-      <div data-component-type="s-search-result" data-asin="B0DEF456">
-        <h2><a><span>Wild Salmon 12 oz</span></a></h2>
-        <span class="a-offscreen">$12.99</span>
-      </div>
-    </body></html>`;
-
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      text: () => Promise.resolve(html),
-    } as Response);
-
-    const products = await adapter.fetchProducts("any", "any");
-    const salmon = products.find(p => p.name.includes("Salmon"));
-    expect(salmon).toBeDefined();
-    expect(salmon!.price).toBe(12.99);
-  });
-
-  it("handles 404 responses gracefully", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response);
-
+  it("returns empty array because it is disabled", async () => {
     const products = await adapter.fetchProducts("any", "any");
     expect(products).toHaveLength(0);
   });
 
-  it("derives category from URL path", async () => {
-    const html = `<html><head>
-      <script type="application/ld+json">
-        {"@type": "Product", "name": "Strawberries",
-         "offers": {"price": "4.99"}}
-      </script>
-    </head><body></body></html>`;
-
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      text: () => Promise.resolve(html),
-    } as Response);
+  it("handles 404 responses gracefully by returning empty", async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response);
 
     const products = await adapter.fetchProducts("any", "any");
-    // Category should be derived from the browse path
-    const strawberries = products.find(p => p.name === "Strawberries");
-    expect(strawberries).toBeDefined();
-    expect(strawberries!.category).toBeDefined();
+    expect(products).toHaveLength(0);
   });
 });

@@ -29,9 +29,11 @@ const CATEGORIES = [
 const PRODUCT_SEARCH_QUERY = `
   query SearchProducts($categoryId: String!, $currentPage: Int!, $pageSize: Int!) {
     products(
-      storeCode: "TJ"
-      published: "1"
-      categoryId: $categoryId
+      filter: {
+        store_code: { eq: "TJ" }
+        published: { eq: "1" }
+        category_id: { eq: $categoryId }
+      }
       currentPage: $currentPage
       pageSize: $pageSize
     ) {
@@ -126,6 +128,13 @@ export class TraderJoesAdapter implements SourceAdapter {
             };
           };
         };
+
+        // Check for GraphQL-level errors in the response
+        if ((data as any)?.errors) {
+          const errors = (data as any).errors;
+          console.error(`[traderjoes] GraphQL errors for ${category.name}:`, JSON.stringify(errors, null, 2));
+          continue;
+        }
 
         const items = data?.data?.products?.items;
         if (!items) {
