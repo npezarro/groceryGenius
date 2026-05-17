@@ -53,7 +53,7 @@ interface NormalizedUnit {
 export function normalizeUnit(unit: string | undefined, price: number, quantity?: number): NormalizedUnit | null {
   if (!unit) return null;
 
-  const key = unit.toLowerCase().trim();
+  const key = String(unit).toLowerCase().trim();
   const conversion = UNIT_CONVERSIONS[key];
   if (!conversion) return null;
 
