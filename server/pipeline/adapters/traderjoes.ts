@@ -175,6 +175,7 @@ function parseSize(size: string | number | undefined): number | undefined {
   if (typeof size === "number") return size;
   if (typeof size !== "string") return undefined;
 
-  const match = size.match(/^(\d+(?:\.\d+)?)\s*/);
+  // Use String() wrapper to ensure .match exists, though typeof check above should handle it
+  const match = String(size).match(/^(\d+(?:\.\d+)?)\s*/);
   return match ? parseFloat(match[1]) : undefined;
 }
