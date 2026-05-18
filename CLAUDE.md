@@ -27,3 +27,12 @@
 - **External data fields are not always strings.** Grocery API responses return prices, sizes, and names as `number | null | undefined` even when typed as `string`. Always wrap with `String(x)` before calling `.match()`, `.toLowerCase()`, `.trim()`, or any string method. Add a null-check first: `if (!x) return undefined;`. Failing to do this causes `TypeError: x.match is not a function` crashes in the normalizer/validator pipeline.
 - **Pattern:** `const str = String(x); const match = str.match(/pattern/);` — not `x.match(/pattern/)`.
 - Files where this pattern applies: `adapters/traderjoes.ts`, `adapters/safeway.ts`, `normalizer.ts`, `validator.ts`.
+
+## Post-Deploy Verification
+
+After deploying to the VM, verify within 30 seconds:
+1. `pm2 show grocerygenius` — confirm status is `online`, uptime climbing, no restart spikes.
+2. `curl -s -o /dev/null -w "%{http_code}" https://$DEPLOY_DOMAIN/grocerygenius/` — confirm HTTP 200 (domain from privateContext/infrastructure.md).
+3. `pm2 logs grocerygenius --lines 20` — scan for errors or crash loops.
+4. If `package.json` or `package-lock.json` changed, run `npm install` on the server before restarting.
+5. Deploy after every change. Do not accumulate commits without deploying. Stale builds cause chunk mismatch errors.
