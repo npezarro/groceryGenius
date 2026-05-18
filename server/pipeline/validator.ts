@@ -6,12 +6,14 @@
 import type { RawProduct } from "./types";
 
 /** Strip HTML tags from text */
-function stripHtml(text: string): string {
+function stripHtml(text: any): string {
+  if (typeof text !== "string") return String(text || "");
   return text.replace(/<[^>]*>/g, "").trim();
 }
 
 /** Check if a string looks like it contains injected HTML/script */
-function containsHtml(text: string): boolean {
+function containsHtml(text: any): boolean {
+  if (typeof text !== "string") return false;
   return /<[a-z/][\s\S]*>/i.test(text);
 }
 

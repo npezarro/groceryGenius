@@ -29,9 +29,11 @@ const CATEGORIES = [
 const PRODUCT_SEARCH_QUERY = `
   query SearchProducts($categoryId: String!, $currentPage: Int!, $pageSize: Int!) {
     products(
-      storeCode: "TJ"
-      published: "1"
-      categoryId: $categoryId
+      filter: {
+        store_code: { eq: "TJ" }
+        published: { eq: "1" }
+        category_id: { eq: $categoryId }
+      }
       currentPage: $currentPage
       pageSize: $pageSize
     ) {
@@ -127,6 +129,13 @@ export class TraderJoesAdapter implements SourceAdapter {
           };
         };
 
+        // Check for GraphQL-level errors in the response
+        if ((data as any)?.errors) {
+          const errors = (data as any).errors;
+          console.error(`[traderjoes] GraphQL errors for ${category.name}:`, JSON.stringify(errors, null, 2));
+          continue;
+        }
+
         const items = data?.data?.products?.items;
         if (!items) {
           console.warn(`[traderjoes] No items in response for ${category.name}`);
@@ -161,8 +170,12 @@ export class TraderJoesAdapter implements SourceAdapter {
   }
 }
 
-function parseSize(size: string | undefined): number | undefined {
-  if (!size) return undefined;
-  const match = size.match(/^(\d+(?:\.\d+)?)\s*/);
+function parseSize(size: string | number | undefined): number | undefined {
+  if (size === undefined || size === null) return undefined;
+  if (typeof size === "number") return size;
+
+  // Use String() wrapper to ensure .match exists
+  const str = String(size);
+  const match = str.match(/^(\d+(?:\.\d+)?)\s*/);
   return match ? parseFloat(match[1]) : undefined;
 }

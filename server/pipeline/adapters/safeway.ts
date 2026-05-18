@@ -136,23 +136,26 @@ export class SafewayAdapter implements SourceAdapter {
 /** Extract price from text like "$3.99", "$3.99/lb", "2 for $5" */
 function parsePrice(text: string): number | null {
   if (!text) return null;
+  const str = String(text);
   // Handle "2 for $X" pattern
-  const multiMatch = text.match(/(\d+)\s*for\s*\$?([\d.]+)/i);
+  const multiMatch = str.match(/(\d+)\s*for\s*\$?([\d.]+)/i);
   if (multiMatch) {
     return Math.round(parseFloat(multiMatch[2]) / parseInt(multiMatch[1]) * 100) / 100;
   }
   // Standard price
-  const match = text.match(/\$?([\d.]+)/);
+  const match = str.match(/\$?([\d.]+)/);
   return match ? parseFloat(match[1]) : null;
 }
 
 /** Try to extract unit from product name, e.g. "Milk, 1 Gallon" -> "gallon" */
 function extractUnit(name: string): string | undefined {
+  if (!name) return undefined;
+  const str = String(name);
   const unitPatterns = [
     /(\d+(?:\.\d+)?)\s*(oz|fl\s*oz|lb|lbs|gal|gallon|qt|pt|ml|l|kg|g|ct|count|pack|pk)\b/i,
   ];
   for (const pattern of unitPatterns) {
-    const match = name.match(pattern);
+    const match = str.match(pattern);
     if (match) return match[2].toLowerCase();
   }
   return undefined;

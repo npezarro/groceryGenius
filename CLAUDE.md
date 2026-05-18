@@ -19,6 +19,11 @@
 - **Base path**: `/grocerygenius`
 - **Port**: 8080 (production), 5000 (dev)
 - **PM2 process**: grocerygenius (id 4)
-- **Deploy**: pezant.ca/grocerygenius via Apache ProxyPass to localhost:8080
+- **Deploy**: production VM via Apache ProxyPass to localhost:8080 (see privateContext/infrastructure.md)
 - **Database**: local PostgreSQL via DATABASE_URL
 - **Required env**: SESSION_SECRET, DATABASE_URL; optional: ADMIN_KEY, MAPBOX_ACCESS_TOKEN
+
+## Pipeline Adapter Gotchas
+- **External data fields are not always strings.** Grocery API responses return prices, sizes, and names as `number | null | undefined` even when typed as `string`. Always wrap with `String(x)` before calling `.match()`, `.toLowerCase()`, `.trim()`, or any string method. Add a null-check first: `if (!x) return undefined;`. Failing to do this causes `TypeError: x.match is not a function` crashes in the normalizer/validator pipeline.
+- **Pattern:** `const str = String(x); const match = str.match(/pattern/);` — not `x.match(/pattern/)`.
+- Files where this pattern applies: `adapters/traderjoes.ts`, `adapters/safeway.ts`, `normalizer.ts`, `validator.ts`.
