@@ -105,7 +105,7 @@ export async function runAdapter(
     if (storeId === "auto") {
       const storeName = SOURCE_STORE_NAMES[sourceId] || adapter.sourceName;
       const allStores = await storage.getAllStores();
-      const existing = allStores.find(s => s.name.toLowerCase().includes(storeName.toLowerCase()));
+      const existing = allStores.find(s => String(s.name).toLowerCase().includes(String(storeName).toLowerCase()));
 
       // Try to get real store details from the adapter (e.g., Kroger Locations API)
       const storeDetails = adapter.resolveStoreDetails
