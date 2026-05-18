@@ -91,11 +91,11 @@ export class SafewayAdapter implements SourceAdapter {
           if (!price || price <= 0) continue;
 
           products.push({
-            name: item.name,
+            name: String(item.name || "Unknown"),
             price,
             unit: extractUnit(item.name),
-            category: item.category,
-            sourceProductId: item.sku || item.productID,
+            category: item.category ? String(item.category) : undefined,
+            sourceProductId: String(item.sku || item.productID),
             imageUrl: typeof item.image === "string" ? item.image : item.image?.url,
           });
         }
