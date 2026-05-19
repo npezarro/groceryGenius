@@ -158,16 +158,19 @@ export class KrogerAdapter implements SourceAdapter {
 
         for (const product of data.data) {
           const item = product.items?.[0];
-          if (!item?.price?.regular) continue;
+          const regularPrice = item?.price?.regular ? Number(item.price.regular) : 0;
+          const promoPrice = item?.price?.promo ? Number(item.price.promo) : undefined;
+          
+          if (regularPrice <= 0) continue;
 
           const raw: RawProduct = {
-            name: product.description,
-            price: item.price.promo ?? item.price.regular,
-            unit: item.size || undefined,
-            isPromotion: item.price.promo != null && item.price.promo < item.price.regular,
-            originalPrice: item.price.promo != null ? item.price.regular : undefined,
-            category: product.categories?.[0],
-            sourceProductId: product.productId,
+            name: String(product.description),
+            price: promoPrice && promoPrice > 0 ? promoPrice : regularPrice,
+            unit: item?.size ? String(item.size) : undefined,
+            isPromotion: promoPrice != null && promoPrice < regularPrice,
+            originalPrice: promoPrice != null && promoPrice < regularPrice ? regularPrice : undefined,
+            category: product.categories?.[0] ? String(product.categories[0]) : undefined,
+            sourceProductId: String(product.productId),
             imageUrl: product.images?.[0]?.sizes?.[0]?.url,
           };
 

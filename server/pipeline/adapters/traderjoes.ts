@@ -143,15 +143,16 @@ export class TraderJoesAdapter implements SourceAdapter {
         }
 
         for (const item of items) {
-          if (!item.retail_price || item.retail_price <= 0) continue;
+          const price = Number(item.retail_price);
+          if (isNaN(price) || price <= 0) continue;
 
           const raw: RawProduct = {
-            name: item.item_title,
-            price: item.retail_price,
-            unit: item.sales_uom_description || item.sales_size || undefined,
+            name: String(item.item_title),
+            price: price,
+            unit: item.sales_uom_description || item.sales_size ? String(item.sales_uom_description || item.sales_size) : undefined,
             quantity: parseSize(item.sales_size),
-            category: item.category_hierarchy?.[0]?.name || category.name,
-            sourceProductId: item.sku,
+            category: item.category_hierarchy?.[0]?.name ? String(item.category_hierarchy[0].name) : category.name,
+            sourceProductId: String(item.sku),
             imageUrl: item.primary_image_meta?.url || undefined,
           };
 

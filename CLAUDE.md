@@ -26,7 +26,8 @@
 ## Pipeline Adapter Gotchas
 - **External data fields are not always strings.** Grocery API responses return prices, sizes, and names as `number | null | undefined` even when typed as `string`. Always wrap with `String(x)` before calling `.match()`, `.toLowerCase()`, `.trim()`, or any string method. Add a null-check first: `if (!x) return undefined;`. Failing to do this causes `TypeError: x.match is not a function` crashes in the normalizer/validator pipeline.
 - **Pattern:** `const str = String(x); const match = str.match(/pattern/);` — not `x.match(/pattern/)`.
-- Files where this pattern applies: `adapters/traderjoes.ts`, `adapters/safeway.ts`, `normalizer.ts`, `validator.ts`.
+- **Prices may arrive as strings.** API responses sometimes return prices as string values (e.g., `"4.99"` instead of `4.99`). Always wrap with `Number(x)` before arithmetic or comparison. Pattern: `const price = Number(item.price); if (isNaN(price) || price <= 0) continue;`
+- Files where these patterns apply: `adapters/traderjoes.ts`, `adapters/kroger.ts`, `adapters/safeway.ts`, `normalizer.ts`, `validator.ts`, `pipeline/index.ts`.
 
 ## Post-Deploy Verification
 
