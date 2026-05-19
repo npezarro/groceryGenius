@@ -19,6 +19,12 @@ let isRunning = false;
 
 /** Start the pipeline scheduler */
 export function startScheduler(): void {
+  // Prevent multiple schedulers in PM2 cluster mode
+  if (process.env.NODE_APP_INSTANCE && process.env.NODE_APP_INSTANCE !== "0") {
+    console.log(`[scheduler] Skipping start on instance ${process.env.NODE_APP_INSTANCE}`);
+    return;
+  }
+
   if (scheduledTasks.length > 0) {
     console.log("[scheduler] Already running, skipping start");
     return;
@@ -27,8 +33,8 @@ export function startScheduler(): void {
   console.log("[scheduler] Starting price pipeline scheduler");
 
   // Run all adapters every 6 hours, staggered from midnight
-  // Cron: at minute 15 past every 6th hour (00:15, 06:15, 12:15, 18:15)
-  const allAdaptersTask = cron.schedule("15 */6 * * *", async () => {
+  // Cron: at second 0, minute 15, every 6th hour (00:15:00, 06:15:00, 12:15:00, 18:15:00)
+  const allAdaptersTask = cron.schedule("0 15 */6 * * *", async () => {
     if (isRunning) {
       console.log("[scheduler] Previous run still in progress, skipping");
       return;
