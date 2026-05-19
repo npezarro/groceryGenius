@@ -29,6 +29,10 @@
 - **Prices may arrive as strings.** API responses sometimes return prices as string values (e.g., `"4.99"` instead of `4.99`). Always wrap with `Number(x)` before arithmetic or comparison. Pattern: `const price = Number(item.price); if (isNaN(price) || price <= 0) continue;`
 - Files where these patterns apply: `adapters/traderjoes.ts`, `adapters/kroger.ts`, `adapters/safeway.ts`, `normalizer.ts`, `validator.ts`, `pipeline/index.ts`.
 
+## Scheduler
+- `server/pipeline/scheduler.ts` runs adapters every 6 hours (00:15, 06:15, 12:15, 18:15).
+- **Single-instance guard:** On startup, scheduler checks `NODE_APP_INSTANCE !== "0"` and exits early if true. This prevents duplicate runs when PM2 operates in cluster mode. If logs show "Skipping start on instance N", that is expected behavior, not a bug.
+
 ## Post-Deploy Verification
 
 After deploying to the VM, verify within 30 seconds:
