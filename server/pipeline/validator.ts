@@ -20,7 +20,7 @@ function containsHtml(text: any): boolean {
 /** Validate a single raw product, returning null if invalid */
 export function validateProduct(product: RawProduct): RawProduct | null {
   // Name is required and must be non-empty after sanitization
-  if (product.name === undefined || product.name === null) return null;
+  if (!product.name || typeof product.name !== "string") return null;
   const name = stripHtml(product.name).slice(0, 200);
   if (name.length < 2) return null;
 
