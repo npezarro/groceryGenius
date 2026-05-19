@@ -166,7 +166,7 @@ export class KrogerAdapter implements SourceAdapter {
           const raw: RawProduct = {
             name: String(product.description),
             price: promoPrice && promoPrice > 0 ? promoPrice : regularPrice,
-            unit: item.size ? String(item.size) : undefined,
+            unit: item?.size ? String(item.size) : undefined,
             isPromotion: promoPrice != null && promoPrice < regularPrice,
             originalPrice: promoPrice != null && promoPrice < regularPrice ? regularPrice : undefined,
             category: product.categories?.[0] ? String(product.categories[0]) : undefined,
