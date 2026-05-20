@@ -11,7 +11,7 @@
  */
 
 import cron, { type ScheduledTask } from "node-cron";
-import { runAllAdapters, getAdapter, runAdapter } from "./index";
+import { runAllAdapters, getAdapter, runAdapter, getLastSuccessfulRun } from "./index";
 import type { PipelineResult } from "./types";
 
 let scheduledTasks: ScheduledTask[] = [];
@@ -33,13 +33,29 @@ export function startScheduler(): void {
   console.log("[scheduler] Starting price pipeline scheduler");
 
   // Run all adapters every 6 hours, staggered from midnight
-  // Cron: at second 0, minute 15, every 6th hour (00:15:00, 06:15:00, 12:15:00, 18:15:00)
-  const allAdaptersTask = cron.schedule("0 15 */6 * * *", async () => {
+  // Cron: at minute 15, every 6th hour (00:15, 06:15, 12:15, 18:15)
+  // Pattern: minute hour day-of-month month day-of-week
+  const allAdaptersTask = cron.schedule("15 */6 * * *", async () => {
     if (isRunning) {
       console.log("[scheduler] Previous run still in progress, skipping");
       return;
     }
+
+    // Claim the lock before any awaits to prevent concurrent invocations
     isRunning = true;
+
+    // Safety check: don't run if we just ran successfully in the last hour
+    // (Prevents double-runs from cron misbehavior or restarts)
+    const lastRun = await getLastSuccessfulRun("kroger"); // Kroger is a good representative source
+    if (lastRun && lastRun.completedAt) {
+      const ageMs = Date.now() - new Date(lastRun.completedAt).getTime();
+      if (ageMs < 60 * 60 * 1000) {
+        console.log(`[scheduler] Skipping scheduled run: last successful run was only ${Math.round(ageMs/60000)}m ago`);
+        isRunning = false;
+        return;
+      }
+    }
+
     try {
       console.log("[scheduler] Running all adapters...");
       const results = await runAllAdapters("94102"); // SF zip code
