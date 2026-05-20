@@ -11,10 +11,12 @@ vi.mock("node-cron", () => ({
 const mockRunAllAdapters = vi.fn();
 const mockGetAdapter = vi.fn();
 const mockRunAdapter = vi.fn();
+const mockGetLastSuccessfulRun = vi.fn();
 vi.mock("../pipeline/index", () => ({
   runAllAdapters: (...args: unknown[]) => mockRunAllAdapters(...args),
   getAdapter: (...args: unknown[]) => mockGetAdapter(...args),
   runAdapter: (...args: unknown[]) => mockRunAdapter(...args),
+  getLastSuccessfulRun: (...args: unknown[]) => mockGetLastSuccessfulRun(...args),
 }));
 
 // Mock DB (imported transitively)

@@ -104,13 +104,21 @@ export async function runAdapter(
     let dbStoreId = storeId;
     if (storeId === "auto") {
       const storeName = SOURCE_STORE_NAMES[sourceId] || adapter.sourceName;
-      const allStores = await storage.getAllStores();
-      const existing = allStores.find(s => String(s.name).toLowerCase().includes(String(storeName).toLowerCase()));
 
       // Try to get real store details from the adapter (e.g., Kroger Locations API)
       const storeDetails = adapter.resolveStoreDetails
         ? await adapter.resolveStoreDetails(zipCode).catch(() => null)
         : null;
+
+      const allStores = await storage.getAllStores();
+      
+      // Try to find by specific name or address first, then fallback to generic chain name
+      const targetSearchName = storeDetails?.name || storeName;
+      const existing = allStores.find(s => 
+        String(s.name).toLowerCase() === String(targetSearchName).toLowerCase() ||
+        (storeDetails && s.address === storeDetails.address) ||
+        String(s.name).toLowerCase().includes(String(storeName).toLowerCase())
+      );
 
       if (existing) {
         dbStoreId = existing.id;
