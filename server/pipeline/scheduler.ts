@@ -33,9 +33,9 @@ export function startScheduler(): void {
   console.log("[scheduler] Starting price pipeline scheduler");
 
   // Run all adapters every 6 hours, staggered from midnight
-  // Cron: at minute 15, every 6th hour (00:15, 06:15, 12:15, 18:15)
-  // Pattern: minute hour day-of-month month day-of-week
-  const allAdaptersTask = cron.schedule("15 */6 * * *", async () => {
+  // Cron: second 0, minute 15, every 6th hour (00:15, 06:15, 12:15, 18:15)
+  // Pattern: second minute hour day-of-month month day-of-week
+  const allAdaptersTask = cron.schedule("0 15 */6 * * *", async () => {
     if (isRunning) {
       console.log("[scheduler] Previous run still in progress, skipping");
       return;
@@ -44,19 +44,24 @@ export function startScheduler(): void {
     // Claim the lock before any awaits to prevent concurrent invocations
     isRunning = true;
 
-    // Safety check: don't run if we just ran successfully in the last hour
-    // (Prevents double-runs from cron misbehavior or restarts)
-    const lastRun = await getLastSuccessfulRun("kroger"); // Kroger is a good representative source
-    if (lastRun && lastRun.completedAt) {
-      const ageMs = Date.now() - new Date(lastRun.completedAt).getTime();
-      if (ageMs < 60 * 60 * 1000) {
-        console.log(`[scheduler] Skipping scheduled run: last successful run was only ${Math.round(ageMs/60000)}m ago`);
-        isRunning = false;
-        return;
-      }
-    }
-
     try {
+      // Safety check: don't run if we just ran successfully in the last hour
+      // (Prevents double-runs from cron misbehavior, restarts, or timezone shifts)
+      const lastRun = await getLastSuccessfulRun("kroger"); // Kroger is a good representative source
+      if (lastRun && lastRun.completedAt) {
+        const lastRunTime = new Date(lastRun.completedAt).getTime();
+        const now = Date.now();
+        const ageMs = now - lastRunTime;
+        
+        // If the last run was less than 5 hours ago (giving a 1-hour buffer for our 6-hour schedule), 
+        // skip this one. This is safer than checking for 1 hour.
+        if (ageMs < 5 * 60 * 60 * 1000) {
+          console.log(`[scheduler] Skipping scheduled run: last successful run was ${Math.round(ageMs/60000)}m ago (min age: 5h)`);
+          isRunning = false;
+          return;
+        }
+      }
+
       console.log("[scheduler] Running all adapters...");
       const results = await runAllAdapters("94102"); // SF zip code
       const totalPrices = results.reduce((sum, r) => sum + r.pricesCreated, 0);
