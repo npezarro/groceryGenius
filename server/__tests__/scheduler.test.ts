@@ -55,7 +55,7 @@ describe("Scheduler", () => {
     it("registers a cron task on first call", () => {
       startScheduler();
       expect(mockSchedule).toHaveBeenCalledOnce();
-      expect(mockSchedule.mock.calls[0][0]).toBe("15 */6 * * *");
+      expect(mockSchedule.mock.calls[0][0]).toBe("0 15 */6 * * *");
     });
 
     it("is idempotent — second call is a no-op", () => {
