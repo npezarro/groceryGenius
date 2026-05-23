@@ -11,11 +11,12 @@
  */
 
 import cron, { type ScheduledTask } from "node-cron";
-import { runAllAdapters, getAdapter, runAdapter, getLastSuccessfulRun } from "./index";
+import { runAllAdapters, getAdapter, runAdapter, getLastSuccessfulRun, getRecentRuns } from "./index";
 import type { PipelineResult } from "./types";
 
 let scheduledTasks: ScheduledTask[] = [];
 let isRunning = false;
+let lastRunMinute: string | null = null;
 
 /** Start the pipeline scheduler */
 export function startScheduler(): void {
@@ -32,29 +33,39 @@ export function startScheduler(): void {
 
   console.log("[scheduler] Starting price pipeline scheduler");
 
-  // Run all adapters every 6 hours, staggered from midnight
-  // Cron: second 0, minute 15, every 6th hour (00:15, 06:15, 12:15, 18:15)
-  // Pattern: second minute hour day-of-month month day-of-week
-  const allAdaptersTask = cron.schedule("0 15 */6 * * *", async () => {
-    if (isRunning) {
-      console.log("[scheduler] Previous run still in progress, skipping");
+  // Run all adapters every 6 hours, at :15 past the hour
+  // Pattern: minute hour day-of-month month day-of-week
+  const allAdaptersTask = cron.schedule("15 */6 * * *", async () => {
+    const currentMinute = new Date().toISOString().slice(0, 16); // e.g. "2026-05-23T12:15"
+    if (isRunning || lastRunMinute === currentMinute) {
+      if (isRunning) console.log("[scheduler] Previous run still in progress, skipping");
       return;
     }
 
     // Claim the lock before any awaits to prevent concurrent invocations
     isRunning = true;
+    lastRunMinute = currentMinute;
 
     try {
       // Safety check: don't run if we just ran successfully in the last hour
       // (Prevents double-runs from cron misbehavior, restarts, or timezone shifts)
-      const lastRun = await getLastSuccessfulRun("kroger"); // Kroger is a good representative source
+      // Check Kroger as it's our primary source; fallback to any successful run
+      let lastRun = await getLastSuccessfulRun("kroger");
+      if (!lastRun) {
+        // If Kroger hasn't run, check the most recent run of ANY source
+        const recentRuns = await getRecentRuns(1);
+        if (recentRuns.length > 0 && recentRuns[0].status === "completed") {
+          lastRun = recentRuns[0];
+        }
+      }
+
       if (lastRun && lastRun.completedAt) {
         const lastRunTime = new Date(lastRun.completedAt).getTime();
         const now = Date.now();
         const ageMs = now - lastRunTime;
         
         // If the last run was less than 5 hours ago (giving a 1-hour buffer for our 6-hour schedule), 
-        // skip this one. This is safer than checking for 1 hour.
+        // skip this one.
         if (ageMs < 5 * 60 * 60 * 1000) {
           console.log(`[scheduler] Skipping scheduled run: last successful run was ${Math.round(ageMs/60000)}m ago (min age: 5h)`);
           isRunning = false;
@@ -84,6 +95,8 @@ export function stopScheduler(): void {
     task.stop();
   }
   scheduledTasks = [];
+  lastRunMinute = null;
+  isRunning = false;
   console.log("[scheduler] Stopped all scheduled tasks");
 }
 
