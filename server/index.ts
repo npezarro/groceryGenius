@@ -81,10 +81,15 @@ app.use((req, res, next) => {
 
 (async () => {
   // Ensure demo data exists for published deployments
-  try {
-    await seedTopUp("all", false); // harmless after first success
-  } catch (e) {
-    console.error("Seed on startup failed (non-fatal):", e);
+  // In PM2 cluster mode, only the first instance should perform the seed
+  const isPrimaryInstance = !process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === "0";
+  
+  if (isPrimaryInstance) {
+    try {
+      await seedTopUp("all", false); // harmless after first success
+    } catch (e) {
+      console.error("Seed on startup failed (non-fatal):", e);
+    }
   }
 
   const server = await registerRoutes(app);
@@ -103,14 +108,32 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Start the price pipeline scheduler in production
-  if (process.env.NODE_ENV === "production") {
+  // Start the price pipeline scheduler in production (only on primary instance)
+  if (process.env.NODE_ENV === "production" && isPrimaryInstance) {
     startScheduler();
   }
 
   const port = parseInt(process.env.PORT || '5000', 10);
   const host = process.env.HOST || "127.0.0.1";
+
+  server.on("error", (error: any) => {
+    if (error.syscall !== "listen") throw error;
+    switch (error.code) {
+      case "EADDRINUSE":
+        console.error(`Port ${port} is already in use`);
+        process.exit(1);
+        break;
+      default:
+        throw error;
+    }
+  });
+
   server.listen(port, host, () => {
     log(`serving on port ${port}`);
   });
 })();
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+  // Optionally: process.exit(1);
+});
