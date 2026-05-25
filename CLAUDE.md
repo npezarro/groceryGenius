@@ -32,6 +32,8 @@
 ## Scheduler
 - `server/pipeline/scheduler.ts` runs adapters every 6 hours (00:15, 06:15, 12:15, 18:15).
 - **Single-instance guard:** On startup, scheduler checks `NODE_APP_INSTANCE !== "0"` and exits early if true. This prevents duplicate runs when PM2 operates in cluster mode. If logs show "Skipping start on instance N", that is expected behavior, not a bug.
+- **Crash-loop double-trigger guard:** A 30-minute time-based guard prevents the pipeline from double-triggering during crash-loop recovery. PM2 restarts the process rapidly during crashes; without this guard, each restart fires the cron handler again. The guard checks both a `lastRunMinute` memory variable (per-minute dedup) and `getRecentRuns()` DB check (30-minute window). Source: commits a385992, 8469e20, 7feace1 (2026-05).
+- **Memory limit:** Start script passes `--max-old-space-size=512` to node (set in `package.json` start command). Source: commit 7feace1.
 
 ## Post-Deploy Verification
 
