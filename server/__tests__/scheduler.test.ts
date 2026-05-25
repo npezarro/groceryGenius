@@ -12,11 +12,13 @@ const mockRunAllAdapters = vi.fn();
 const mockGetAdapter = vi.fn();
 const mockRunAdapter = vi.fn();
 const mockGetLastSuccessfulRun = vi.fn();
+const mockGetRecentRuns = vi.fn();
 vi.mock("../pipeline/index", () => ({
   runAllAdapters: (...args: unknown[]) => mockRunAllAdapters(...args),
   getAdapter: (...args: unknown[]) => mockGetAdapter(...args),
   runAdapter: (...args: unknown[]) => mockRunAdapter(...args),
   getLastSuccessfulRun: (...args: unknown[]) => mockGetLastSuccessfulRun(...args),
+  getRecentRuns: (...args: unknown[]) => mockGetRecentRuns(...args),
 }));
 
 // Mock DB (imported transitively)
@@ -36,6 +38,15 @@ describe("Scheduler", () => {
     vi.clearAllMocks();
     // Reset scheduler state by stopping any previous tasks
     stopScheduler();
+    
+    // Default mock behaviors
+    mockGetLastSuccessfulRun.mockResolvedValue(null);
+    mockGetRecentRuns.mockResolvedValue([]);
+    mockRunAllAdapters.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   // ── startScheduler ─────────────────────────────────────────────
@@ -44,7 +55,7 @@ describe("Scheduler", () => {
     it("registers a cron task on first call", () => {
       startScheduler();
       expect(mockSchedule).toHaveBeenCalledOnce();
-      expect(mockSchedule.mock.calls[0][0]).toBe("0 15 */6 * * *");
+      expect(mockSchedule.mock.calls[0][0]).toBe("15 */6 * * *");
     });
 
     it("is idempotent — second call is a no-op", () => {
@@ -228,6 +239,10 @@ describe("Scheduler", () => {
 
       // First invocation starts and holds
       const firstRun = cronCallback();
+      
+      // Wait for the first run to actually reach runAllAdapters (past guards)
+      await new Promise(resolve => setTimeout(resolve, 0));
+
       // Second invocation should skip (isRunning = true)
       await cronCallback();
 
@@ -239,12 +254,18 @@ describe("Scheduler", () => {
     });
 
     it("resets isRunning after cron callback errors", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-05-23T12:15:00Z"));
+      
       mockRunAllAdapters.mockRejectedValueOnce(new Error("boom"));
       startScheduler();
       const cronCallback = mockSchedule.mock.calls[0][1] as () => Promise<void>;
 
       // Should not throw — error is caught internally
       await cronCallback();
+
+      // Advance time to allow another run
+      vi.setSystemTime(new Date("2026-05-23T12:16:00Z"));
 
       // Should allow next run
       mockRunAllAdapters.mockResolvedValue([]);
