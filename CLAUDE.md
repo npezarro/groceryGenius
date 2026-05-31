@@ -43,3 +43,39 @@ After deploying to the VM, verify within 30 seconds:
 3. `pm2 logs grocerygenius --lines 20` — scan for errors or crash loops.
 4. If `package.json` or `package-lock.json` changed, run `npm install` on the server before restarting.
 5. Deploy after every change. Do not accumulate commits without deploying. Stale builds cause chunk mismatch errors.
+
+## Zod Validation in Express/API Routes
+
+groceryGenius uses Zod for input validation across `server/routes.ts`, adapter responses, and CSV import. Every route that parses input with `.parse()` **must** catch `ZodError` and return a 400 response. Without this, validation failures bubble up as unhandled exceptions → 500 Internal Server Error, hiding the real problem from the client.
+
+```typescript
+import { ZodError } from "zod";
+
+try {
+  const data = mySchema.parse(req.body);
+  // ... handle request
+} catch (error) {
+  if (error instanceof ZodError) {
+    return res.status(400).json({ error: "Validation failed", details: error.errors });
+  }
+  throw error; // re-throw non-validation errors
+}
+```
+
+groceryGenius previously had this exact gap on a single endpoint while all others were correct. When adding a new Zod-validated endpoint, always include the `ZodError` catch. When auditing, search for every `.parse(` and confirm each call site handles `ZodError`.
+
+## Testing
+
+groceryGenius uses Vitest (`npx vitest` / `npm test`). Test rules tuned for this codebase:
+
+- **Bug fixes:** Write a regression test that fails without the fix, passes with it. The fix goes in the code; the test goes in the suite so the *class of bug* never returns.
+- **Cross-layer invariant tests are the highest-value type here.** This repo has documented invariants between pipeline → database → API → UI. Examples:
+  - Pipeline-created stores must have `lat`/`lng` (trip planner filters on `WHERE lat IS NOT NULL`).
+  - Price records must include `unit` (UI formats `$2.99/lb`; missing unit shows `$2.99` with no context).
+  - Price-history API responses must include `storeName` (UI sparkline depends on it).
+  - Shopping-list items must roundtrip through JSON.parse(JSON.stringify(items)) without losing fields.
+  Name invariant tests after the boundary they guard (`pipeline-stores.test.ts`, `price-display.test.ts`, `trip-planner.test.ts`).
+- **Pipeline adapter tests must use String(x)/Number(x) coercion** when fabricating fixtures, matching the production adapter contract documented in "Pipeline Adapter Gotchas" above. Tests that hand-write typed fixtures hide the real bug class (external APIs returning unexpected types).
+- **Don't mock the database.** Mock/prod divergence is the #1 source of false-green tests. Hit a real test DB or use the same Drizzle schema definitions the application uses — do not duplicate DDL inline in tests (silent fixture schema drift).
+- **Test glob quoting on CI:** Use a flat glob (`test/*.test.ts`) or let Vitest discover via config. Single-quoted `**/*.test.ts` does not expand on GitHub Actions because globstar is off by default.
+- **CI uses Node 22** (current LTS). Don't pin Node 20 — it reached EOL April 30, 2026.
