@@ -50,7 +50,6 @@ async function main() {
   const { receipts, prices } = await import("@shared/schema");
   const { ocrImage } = await import("../lib/ocr");
   const { parseReceiptText } = await import("../lib/ai-features");
-  const { geocodeAddress } = await import("../lib/geocoding");
 
   const files = readdirSync(dir)
     .filter((f) => IMAGE_EXTS.has(extname(f).toLowerCase()))
@@ -94,12 +93,13 @@ async function main() {
         if (match) {
           storeId = match.id;
         } else {
-          const coords = parsed.storeLocation ? await geocodeAddress(parsed.storeLocation).catch(() => null) : null;
+          // No synchronous geocode here (Nominatim is slow/rate-limited from the
+          // VM and was the import bottleneck). Coordinates can be backfilled later.
           const created = await storage.createStore({
             name: sName,
             address: parsed.storeLocation || "Community reported",
-            lat: coords?.lat ?? null,
-            lng: coords?.lng ?? null,
+            lat: null,
+            lng: null,
           });
           allStores.push(created);
           storeId = created.id;
@@ -123,9 +123,10 @@ async function main() {
       // 2. Price rows (only when tied to a store) so planner/deals benefit.
       if (storeId) {
         const capturedAt = parsed.purchaseDate ? new Date(parsed.purchaseDate) : new Date();
+        const priceRows = [];
         for (const it of parsed.items) {
           const item = await storage.findOrCreateItem(it.name, it.unit);
-          await db.insert(prices).values({
+          priceRows.push({
             itemId: item.id,
             storeId,
             price: String(it.price),
@@ -137,7 +138,10 @@ async function main() {
             submittedBy: community.id,
             notes: "community receipt",
           });
-          summary.prices++;
+        }
+        if (priceRows.length) {
+          await db.insert(prices).values(priceRows);
+          summary.prices += priceRows.length;
         }
       }
       summary.ok++;
