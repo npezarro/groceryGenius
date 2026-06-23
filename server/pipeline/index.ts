@@ -14,6 +14,7 @@ import { BLSAdapter } from "./adapters/bls";
 import { db } from "../db";
 import { scrapeRuns, stores } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { DEFAULT_ZIP } from "../config";
 import { storage } from "../storage";
 
 /** Geocode a zip code using Nominatim (free, no API key) */
@@ -201,7 +202,7 @@ export async function runAdapter(
 }
 
 /** Run all configured adapters */
-export async function runAllAdapters(zipCode: string = "94102"): Promise<PipelineResult[]> {
+export async function runAllAdapters(zipCode: string = DEFAULT_ZIP): Promise<PipelineResult[]> {
   const results: PipelineResult[] = [];
 
   for (const adapter of adapters) {

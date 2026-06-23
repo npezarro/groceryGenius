@@ -21,6 +21,7 @@ import {
 } from "./lib/trip-planner";
 import { geocodeAddress } from "./lib/geocoding";
 import { deduplicateLatestByStore, parseDaysParam } from "./lib/price-queries";
+import { PRICE_FRESHNESS_DAYS, DEFAULT_ZIP } from "./config";
 
 // Trip planning algorithm
 
@@ -46,7 +47,7 @@ async function generateTripPlans(
   // Get prices for matched items at nearby stores
   const itemIds = matchedItems.map(item => item.id);
   const storeIds = storesWithCoords.map(store => store.id);
-  const allPrices = await storage.getPricesForItems(itemIds, storeIds);
+  const allPrices = await storage.getPricesForItems(itemIds, storeIds, PRICE_FRESHNESS_DAYS);
 
   // Index prices for O(1) lookups
   const { pricesByStore, itemsByStore } = indexPrices(storesWithCoords, allPrices);
@@ -811,7 +812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (zipCode && !/^\d{5}(-\d{4})?$/.test(zipCode)) {
         return res.status(400).json({ error: "Invalid zipCode format (expected 5-digit or ZIP+4)" });
       }
-      const result = await triggerManualRun(zipCode || "94102");
+      const result = await triggerManualRun(zipCode || DEFAULT_ZIP);
       res.json(result);
     } catch (error) {
       console.error("Pipeline run error:", error);
@@ -830,7 +831,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (zipCode && !/^\d{5}(-\d{4})?$/.test(zipCode)) {
         return res.status(400).json({ error: "Invalid zipCode format (expected 5-digit or ZIP+4)" });
       }
-      const result = await triggerSingleRun(req.params.sourceId, zipCode || "94102");
+      const result = await triggerSingleRun(req.params.sourceId, zipCode || DEFAULT_ZIP);
       res.json(result);
     } catch (error) {
       console.error("Pipeline single-run error:", error);
