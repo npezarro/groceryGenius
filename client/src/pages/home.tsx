@@ -24,6 +24,7 @@ const TripPlans = lazy(() => import("@/components/trip-plans"));
 const AdminPanel = lazy(() => import("@/components/admin-panel"));
 const AIListBuilder = lazy(() => import("@/components/ai-list-builder"));
 const Deals = lazy(() => import("@/components/deals"));
+const StoreDirectory = lazy(() => import("@/components/store-directory"));
 
 const isMapEnabled = import.meta.env.VITE_ENABLE_MAP === "true";
 
@@ -366,7 +367,13 @@ export default function Home() {
                     onSelectPlan={handleSelectPlan}
                     userCoordinates={coordinates}
                   />
+                </Suspense>
 
+                <Suspense fallback={<SectionLoading />}>
+                  <StoreDirectory coordinates={coordinates} />
+                </Suspense>
+
+                <Suspense fallback={null}>
                   <AdminPanel />
                 </Suspense>
               </div>
@@ -471,7 +478,13 @@ export default function Home() {
                   onSelectPlan={handleSelectPlan}
                   userCoordinates={coordinates}
                 />
+              </Suspense>
 
+              <Suspense fallback={<SectionLoading />}>
+                <StoreDirectory coordinates={coordinates} />
+              </Suspense>
+
+              <Suspense fallback={null}>
                 <AdminPanel />
               </Suspense>
             </div>

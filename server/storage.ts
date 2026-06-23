@@ -370,6 +370,47 @@ export class DatabaseStorage {
     return updated;
   }
 
+  // ── Store directory (anonymized receipt data) ───────
+
+  /**
+   * Anonymized, processed receipts for the public store directory. Never
+   * exposes userId or the raw image — only what was bought, discounts, the
+   * store, its reported location, and dates.
+   */
+  async getAnonymizedReceipts(): Promise<Array<{
+    id: string;
+    storeId: string | null;
+    storeName: string | null;
+    storeLocation: string | null;
+    purchaseDate: Date | null;
+    uploadedAt: Date | null;
+    totalAmount: string | null;
+    parsedItems: unknown;
+  }>> {
+    return await db.select({
+      id: receipts.id,
+      storeId: receipts.storeId,
+      storeName: receipts.storeName,
+      storeLocation: receipts.storeLocation,
+      purchaseDate: receipts.purchaseDate,
+      uploadedAt: receipts.uploadedAt,
+      totalAmount: receipts.totalAmount,
+      parsedItems: receipts.parsedItems,
+    })
+      .from(receipts)
+      .where(eq(receipts.status, "processed"))
+      .orderBy(desc(receipts.uploadedAt));
+  }
+
+  /** Distinct item count (all-time price coverage) per store. */
+  async getStoreCoverageCounts(): Promise<Map<string, number>> {
+    const rows = await db.select({
+      storeId: prices.storeId,
+      count: sql<number>`count(distinct ${prices.itemId})`,
+    }).from(prices).groupBy(prices.storeId);
+    return new Map(rows.map((r) => [r.storeId, Number(r.count)]));
+  }
+
   // ── Stats ───────────────────────────────────────────
 
   async getDataStats(): Promise<{

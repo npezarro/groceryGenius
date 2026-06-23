@@ -100,6 +100,7 @@ export const receipts = pgTable("receipts", {
   userId: varchar("user_id").notNull().references(() => users.id),
   storeId: varchar("store_id").references(() => stores.id),
   storeName: text("store_name"),
+  storeLocation: text("store_location"), // street/city printed on the receipt
   imageData: text("image_data"), // base64 thumbnail for reference
   purchaseDate: timestamp("purchase_date"),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }),

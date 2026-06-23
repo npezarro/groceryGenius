@@ -17,6 +17,7 @@ import {
   matchItems,
   indexPrices,
   generateCandidatePlans,
+  distToStore,
   type StoreWithId,
 } from "./lib/trip-planner";
 import { geocodeAddress } from "./lib/geocoding";
@@ -25,6 +26,7 @@ import { PRICE_FRESHNESS_DAYS, DEFAULT_ZIP } from "./config";
 import { aiEnabled, AIUnavailableError } from "./lib/ai-bridge";
 import {
   mealPlanToList,
+  organizeListByAisle,
   matchItemsAI,
   suggestSubstitutions,
   parseReceiptText,
@@ -455,6 +457,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 1b. Organize a list by aisle (no price data needed)
+  router.post("/api/ai/organize-list", async (req: Request, res: Response) => {
+    try {
+      const { items } = z.object({ items: z.array(z.string().min(1)).min(1).max(200) }).parse(req.body);
+      const groups = await organizeListByAisle(items);
+      res.json({ groups });
+    } catch (error) {
+      handleAIError(res, error, "Organize list");
+    }
+  });
+
   // 2. Substitutions — cheaper, sensible swaps grounded in real nearby prices
   router.post("/api/ai/substitutions", async (req: Request, res: Response) => {
     try {
@@ -577,6 +590,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ receipt: updated, parsed });
     } catch (error) {
       handleAIError(res, error, "Receipt parse");
+    }
+  });
+
+  // ── Store directory (anonymized community receipt data) ──
+  router.get("/api/store-directory", async (req: Request, res: Response) => {
+    try {
+      const lat = parseFloat(String(req.query.lat ?? ""));
+      const lng = parseFloat(String(req.query.lng ?? ""));
+      const radius = parseFloat(String(req.query.radius ?? "")) || 10;
+      const hasLoc = !isNaN(lat) && !isNaN(lng);
+
+      const stores = hasLoc
+        ? await storage.getStoresWithinRadius(lat, lng, radius)
+        : await storage.getAllStores();
+      const coverage = await storage.getStoreCoverageCounts();
+      const receipts = await storage.getAnonymizedReceipts();
+
+      // Group anonymized receipts by storeId, with a name fallback for imports
+      // that were never tied to a store record.
+      const byStoreId = new Map<string, typeof receipts>();
+      const byName = new Map<string, typeof receipts>();
+      for (const r of receipts) {
+        const items = Array.isArray(r.parsedItems) ? r.parsedItems : [];
+        if (items.length === 0) continue;
+        if (r.storeId) {
+          (byStoreId.get(r.storeId) ?? byStoreId.set(r.storeId, []).get(r.storeId)!).push(r);
+        } else if (r.storeName) {
+          const key = r.storeName.toLowerCase().trim();
+          (byName.get(key) ?? byName.set(key, []).get(key)!).push(r);
+        }
+      }
+
+      const toDataPoint = (r: typeof receipts[number], fallbackLoc?: string | null) => ({
+        date: (r.purchaseDate ?? r.uploadedAt ?? null),
+        location: r.storeLocation || fallbackLoc || null,
+        total: r.totalAmount != null ? Number(r.totalAmount) : null,
+        items: (Array.isArray(r.parsedItems) ? r.parsedItems : []).map((it) => {
+          const o = (it ?? {}) as Record<string, unknown>;
+          return {
+            name: String(o.name ?? ""),
+            price: Number(o.price) || 0,
+            discount: o.discount != null ? Number(o.discount) : undefined,
+            originalPrice: o.originalPrice != null ? Number(o.originalPrice) : undefined,
+          };
+        }).filter((i) => i.name),
+      });
+
+      const usedNameKeys = new Set<string>();
+      const entries = stores.map((s) => {
+        const direct = byStoreId.get(s.id) ?? [];
+        const nameKey = s.name.toLowerCase().trim();
+        const named = byName.get(nameKey) ?? [];
+        if (named.length) usedNameKeys.add(nameKey);
+        const recs = [...direct, ...named];
+        const distance = hasLoc && s.lat != null && s.lng != null
+          ? distToStore({ lat: s.lat, lng: s.lng }, lat, lng) : undefined;
+        return {
+          store: { id: s.id, name: s.name, address: s.address, lat: s.lat, lng: s.lng, distance },
+          coverage: coverage.get(s.id) ?? 0,
+          reportCount: recs.length,
+          dataPoints: recs.slice(0, 20).map((r) => toDataPoint(r, s.address)),
+        };
+      });
+
+      // Imported receipts whose store name matched no store record become their
+      // own "community-reported" directory entries.
+      for (const [key, recs] of byName) {
+        if (usedNameKeys.has(key)) continue;
+        entries.push({
+          store: { id: `reported:${key}`, name: recs[0].storeName || "Reported store", address: recs[0].storeLocation || "Community reported", lat: null, lng: null, distance: undefined },
+          coverage: 0,
+          reportCount: recs.length,
+          dataPoints: recs.slice(0, 20).map((r) => toDataPoint(r)),
+        });
+      }
+
+      // Sort: stores with data first, then by distance (if known) else coverage
+      entries.sort((a, b) => {
+        if ((b.reportCount > 0 ? 1 : 0) !== (a.reportCount > 0 ? 1 : 0)) {
+          return (b.reportCount > 0 ? 1 : 0) - (a.reportCount > 0 ? 1 : 0);
+        }
+        if (hasLoc && a.store.distance != null && b.store.distance != null) {
+          return a.store.distance - b.store.distance;
+        }
+        return b.coverage - a.coverage;
+      });
+
+      res.json({ stores: entries });
+    } catch (error) {
+      console.error("Store directory error:", error);
+      res.status(500).json({ error: "Failed to load store directory" });
     }
   });
 

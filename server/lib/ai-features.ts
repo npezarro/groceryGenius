@@ -70,6 +70,50 @@ function normalizeList(raw: unknown): ParsedListItem[] {
   return out;
 }
 
+// ── 1b. Organize an existing list by store aisle (no prices needed) ──
+
+export interface AisleGroup {
+  aisle: string;
+  items: string[];
+}
+
+/**
+ * Group a list of item names into store aisles in a sensible shopping order.
+ * Pure-AI, needs no price data — makes the list useful even with zero pricing.
+ */
+export async function organizeListByAisle(names: string[]): Promise<AisleGroup[]> {
+  if (names.length === 0) return [];
+  const prompt = `Group this shopping list into store aisles, ordered for an efficient shopping walk (produce first, frozen/refrigerated last).
+
+Items:
+${names.map((n) => `- ${n}`).join("\n")}
+
+Use aisles from: ${GROCERY_CATEGORIES.join(", ")}.
+Every input item must appear exactly once, under one aisle, with its name unchanged.
+
+Respond with ONLY a JSON array ordered by shopping sequence:
+[{"aisle": string, "items": [string, ...]}]`;
+
+  const raw = await callBridgeJson<unknown>(prompt, "haiku");
+  const arr = Array.isArray(raw) ? raw : [];
+  const inputSet = new Set(names.map((n) => n.toLowerCase()));
+  const seen = new Set<string>();
+  const groups: AisleGroup[] = [];
+  for (const el of arr) {
+    if (!el || typeof el !== "object") continue;
+    const o = el as Record<string, unknown>;
+    const aisle = String(o.aisle ?? "Other").trim();
+    const items = Array.isArray(o.items) ? o.items.map((x) => String(x).trim()) : [];
+    const kept = items.filter((n) => inputSet.has(n.toLowerCase()) && !seen.has(n.toLowerCase()));
+    kept.forEach((n) => seen.add(n.toLowerCase()));
+    if (kept.length) groups.push({ aisle, items: kept });
+  }
+  // Anything the model dropped goes under "Other" so nothing is lost.
+  const missing = names.filter((n) => !seen.has(n.toLowerCase()));
+  if (missing.length) groups.push({ aisle: "Other", items: missing });
+  return groups;
+}
+
 // ── 2. Semantic item matching for the trip planner ──
 
 /**
@@ -165,16 +209,30 @@ Respond with ONLY a JSON array (may be empty), each element:
 
 // ── 4. Receipt OCR text → structured items ──
 
+export interface ParsedReceiptItem {
+  name: string;
+  price: number;
+  quantity?: number;
+  unit?: string;
+  /** Pre-discount price if the receipt shows a markdown/sale on this line. */
+  originalPrice?: number;
+  /** Dollar discount applied to this line, if shown. */
+  discount?: number;
+}
+
 export interface ParsedReceipt {
   storeName?: string;
+  /** Street/city/area printed on the receipt (for the store directory). */
+  storeLocation?: string;
   purchaseDate?: string; // ISO yyyy-mm-dd
   total?: number;
-  items: Array<{ name: string; price: number; quantity?: number; unit?: string }>;
+  items: ParsedReceiptItem[];
 }
 
 /**
  * Parse raw OCR text from a grocery receipt into structured items + prices.
  * Vision is done upstream (OCR); this turns noisy text into clean records.
+ * Captures per-line discounts and the store location for the store directory.
  */
 export async function parseReceiptText(ocrText: string): Promise<ParsedReceipt> {
   const prompt = `Parse this grocery receipt OCR text into structured data. OCR is noisy; infer sensible product names.
@@ -186,17 +244,18 @@ ${ocrText.slice(0, 6000)}
 
 Rules:
 - Expand abbreviated product names to readable grocery names when confident.
-- price is the per-line price paid in dollars.
-- Skip non-item lines (subtotal, tax, total, payment, change, loyalty).
-- Capture the store name and purchase date if present.
+- price is the per-line price actually paid in dollars (after any discount).
+- If a line shows a sale/markdown/coupon, set originalPrice (pre-discount) and discount (dollars off).
+- Skip non-item lines (subtotal, tax, total, payment, change, loyalty balance).
+- Capture the store name, the store street/city location, and the purchase date if present.
 
 Respond with ONLY JSON:
-{"storeName": string|null, "purchaseDate": "YYYY-MM-DD"|null, "total": number|null,
- "items": [{"name": string, "price": number, "quantity": number|null, "unit": string|null}]}`;
+{"storeName": string|null, "storeLocation": string|null, "purchaseDate": "YYYY-MM-DD"|null, "total": number|null,
+ "items": [{"name": string, "price": number, "quantity": number|null, "unit": string|null, "originalPrice": number|null, "discount": number|null}]}`;
 
   const raw = await callBridgeJson<Record<string, unknown>>(prompt, "haiku");
   const itemsRaw = Array.isArray(raw?.items) ? (raw.items as unknown[]) : [];
-  const items: ParsedReceipt["items"] = [];
+  const items: ParsedReceiptItem[] = [];
   for (const el of itemsRaw) {
     if (!el || typeof el !== "object") continue;
     const o = el as Record<string, unknown>;
@@ -204,16 +263,21 @@ Respond with ONLY JSON:
     const price = Number(o.price);
     if (!name || !Number.isFinite(price) || price <= 0) continue;
     const qty = Number(o.quantity);
+    const orig = Number(o.originalPrice);
+    const disc = Number(o.discount);
     items.push({
       name,
       price,
       quantity: Number.isFinite(qty) && qty > 0 ? qty : undefined,
       unit: o.unit ? String(o.unit).trim() : undefined,
+      originalPrice: Number.isFinite(orig) && orig > price ? orig : undefined,
+      discount: Number.isFinite(disc) && disc > 0 ? disc : undefined,
     });
   }
   const total = Number(raw?.total);
   return {
     storeName: raw?.storeName ? String(raw.storeName).slice(0, 120) : undefined,
+    storeLocation: raw?.storeLocation ? String(raw.storeLocation).slice(0, 160) : undefined,
     purchaseDate: typeof raw?.purchaseDate === "string" ? raw.purchaseDate.slice(0, 10) : undefined,
     total: Number.isFinite(total) ? total : undefined,
     items,
