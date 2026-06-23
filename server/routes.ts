@@ -43,27 +43,38 @@ async function generateTripPlans(
   userHasMembership: boolean = false,
   smartMatch: boolean = false
 ) {
-  // Find items by fuzzy matching
-  const allItems = await storage.getAllItems();
-  let matchedItems = matchItems(itemNames, allItems);
+  // Get stores within radius up front so we can scope the catalog to items that
+  // actually have fresh prices nearby.
+  const nearbyStores = await storage.getStoresWithinRadius(userLat, userLng, radiusMiles);
+  const storesWithCoords = nearbyStores.filter(store => store.lat && store.lng);
+  if (storesWithCoords.length === 0) return [];
+  const nearbyStoreIds = storesWithCoords.map(store => store.id);
+
+  // Match against the LIVE catalog: items with fresh prices at nearby stores.
+  // Matching the full catalog maps "milk" to a generic seed item that has no
+  // current price, while live prices sit under verbose product names; scoping
+  // to fresh-priced items makes the planner reflect real, buyable prices.
+  const allItems = await storage.getItemsWithFreshPrices(nearbyStoreIds, PRICE_FRESHNESS_DAYS);
+  const catalog = allItems.length > 0 ? allItems : await storage.getAllItems();
+  let matchedItems = matchItems(itemNames, catalog);
 
   // Optional AI semantic matching: when the deterministic matcher leaves items
-  // unmatched (e.g. "whole milk" vs "Milk, Whole, 1 Gallon"), ask the bridge to
-  // map the unmatched user names to real catalog names, then re-match.
+  // unmatched (e.g. "whole milk" vs "Kroger 2% Reduced Fat Milk"), ask the
+  // bridge to map the unmatched user names to real catalog names, then re-match.
   if (smartMatch && aiEnabled() && matchedItems.length < itemNames.length) {
     const matchedNames = new Set(matchedItems.map((i) => i.name.toLowerCase()));
     const unmatched = itemNames.filter((n) => {
       const lower = n.toLowerCase();
-      return !allItems.some(
+      return !catalog.some(
         (it) => it.name.toLowerCase() === lower || matchedNames.has(it.name.toLowerCase()),
       );
     });
     if (unmatched.length > 0) {
       try {
-        const mapping = await matchItemsAI(unmatched, allItems.map((i) => i.name));
+        const mapping = await matchItemsAI(unmatched, catalog.map((i) => i.name));
         const aiNames = Object.values(mapping).filter((v): v is string => Boolean(v));
         if (aiNames.length > 0) {
-          const extra = matchItems(aiNames, allItems);
+          const extra = matchItems(aiNames, catalog);
           const seen = new Set(matchedItems.map((i) => i.id));
           matchedItems = [...matchedItems, ...extra.filter((i) => !seen.has(i.id))];
         }
@@ -76,15 +87,9 @@ async function generateTripPlans(
 
   if (matchedItems.length === 0) return [];
 
-  // Get stores within radius
-  const nearbyStores = await storage.getStoresWithinRadius(userLat, userLng, radiusMiles);
-  const storesWithCoords = nearbyStores.filter(store => store.lat && store.lng);
-  if (storesWithCoords.length === 0) return [];
-
-  // Get prices for matched items at nearby stores
+  // Get prices for matched items at nearby stores (reuse stores resolved above)
   const itemIds = matchedItems.map(item => item.id);
-  const storeIds = storesWithCoords.map(store => store.id);
-  const allPrices = await storage.getPricesForItems(itemIds, storeIds, PRICE_FRESHNESS_DAYS);
+  const allPrices = await storage.getPricesForItems(itemIds, nearbyStoreIds, PRICE_FRESHNESS_DAYS);
 
   // Index prices for O(1) lookups
   const { pricesByStore, itemsByStore } = indexPrices(storesWithCoords, allPrices);

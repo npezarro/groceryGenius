@@ -121,6 +121,35 @@ export class DatabaseStorage {
     return await db.select().from(prices).where(and(...conditions));
   }
 
+  /**
+   * Distinct items that have at least one fresh price (within maxAgeDays),
+   * optionally restricted to a set of stores. This is the "live catalog" the
+   * trip planner matches against, so user items map to products that actually
+   * have current prices — not stale seed records that share a generic name.
+   */
+  async getItemsWithFreshPrices(storeIds: string[] | undefined, maxAgeDays: number): Promise<Item[]> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - maxAgeDays);
+    const conditions = [sql`${prices.capturedAt} >= ${cutoff}`];
+    if (storeIds && storeIds.length > 0) {
+      conditions.push(inArray(prices.storeId, storeIds));
+    }
+    const rows = await db
+      .selectDistinct({
+        id: items.id,
+        name: items.name,
+        descriptor: items.descriptor,
+        unit: items.unit,
+        organicConventional: items.organicConventional,
+        bunchFlag: items.bunchFlag,
+        createdAt: items.createdAt,
+      })
+      .from(items)
+      .innerJoin(prices, eq(prices.itemId, items.id))
+      .where(and(...conditions));
+    return rows as Item[];
+  }
+
   async getExistingPricePairs(storeIds: string[], itemIds: string[]): Promise<Array<{storeId: string, itemId: string}>> {
     if (storeIds.length === 0 || itemIds.length === 0) return [];
     return await db.select({
