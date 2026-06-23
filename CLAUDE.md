@@ -106,3 +106,26 @@ Anthropic account — never the primary. Mirrors shopper/foodie/travel/runeval.
 - **Data strategy:** Receipt ingest is the price-acquisition path for stores that
   can't be scraped from the VM IP (Safeway/Target/Costco/Whole Foods — anti-bot
   or client-rendered). Scraping covers Kroger(FoodsCo)/Trader Joe's/BLS.
+
+## Store Directory + Receipt Ingestion
+
+The app is designed to be useful BEFORE dense pricing exists. Receipts are
+first-class community data.
+
+- **Directory** (`GET /api/store-directory`, `StoreDirectory` UI): nearby stores,
+  each with anonymized community receipt **data points** (items bought, discounts,
+  location, date). Never exposes userId or the receipt image. Sorted: stores with
+  data first, then distance (if coords) else coverage.
+- **Receipt data points**: `receipts.parsedItems` + `store_location` column.
+  `parseReceiptText` captures discounts + location. **Price is optional** — an item
+  with no captured price still becomes a data point; price rows are only written
+  when a price > 0 exists.
+- **Batch importer** `server/scripts/import-receipts.ts`: OCR → AI parse → tie to a
+  store (match existing, else create from the printed location) → anonymized receipt
+  (system user `community-receipts`, no image) + price rows. Idempotent (skips a
+  duplicate store+date+itemcount). Run from the app dir:
+  `./node_modules/.bin/tsx server/scripts/import-receipts.ts <folder>`.
+- **OCR** (`server/lib/ocr.ts`): EXIF auto-orient + tesseract OSD rotation (phone
+  receipts are rotated), psm 4. Host needs `tesseract-ocr` + `imagemagick`.
+- **AI list organizer** (`POST /api/ai/organize-list`): groups any list into store
+  aisles in shopping order. Needs no price data.
