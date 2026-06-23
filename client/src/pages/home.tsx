@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useShoppingLists } from "@/hooks/use-shopping-lists";
+import { useAIStatus } from "@/hooks/use-ai-status";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
@@ -21,6 +22,8 @@ const ReceiptUpload = lazy(() => import("@/components/receipt-upload"));
 const MapView = lazy(() => import("@/components/map-view"));
 const TripPlans = lazy(() => import("@/components/trip-plans"));
 const AdminPanel = lazy(() => import("@/components/admin-panel"));
+const AIListBuilder = lazy(() => import("@/components/ai-list-builder"));
+const Deals = lazy(() => import("@/components/deals"));
 
 const isMapEnabled = import.meta.env.VITE_ENABLE_MAP === "true";
 
@@ -49,9 +52,10 @@ export default function Home() {
   const { user, logout } = useAuth();
   const isMobile = useIsMobile();
   const shoppingLists = useShoppingLists();
+  const aiEnabled = useAIStatus();
 
   // State
-  const [location, setLocation] = useState("123 Main St, San Francisco, CA");
+  const [location, setLocation] = useState("280 15th Ave, San Francisco, CA 94118");
   const [coordinates, setCoordinates] = useState<LocationCoordinates | null>(null);
   const [radius, setRadius] = useState(5);
   const [weights, setWeights] = useState<TripWeights>({
@@ -119,7 +123,8 @@ export default function Home() {
         location: coordinates,
         radius,
         weights,
-        userHasMembership
+        userHasMembership,
+        smartMatch: aiEnabled
       });
       
       return response.json();
@@ -297,6 +302,12 @@ export default function Home() {
                   />
                 </Suspense>
 
+                {aiEnabled && (
+                  <Suspense fallback={<SectionLoading />}>
+                    <AIListBuilder items={shoppingLists.items} onItemsChange={shoppingLists.setItems} />
+                  </Suspense>
+                )}
+
                 <Suspense fallback={<SectionLoading />}>
                   <LocationPreferences
                     location={location}
@@ -342,6 +353,12 @@ export default function Home() {
 
             <TabsContent value="trips" className="min-h-[calc(100vh-8rem)]">
               <div className="space-y-6 pt-2">
+                {aiEnabled && (
+                  <Suspense fallback={null}>
+                    <Deals />
+                  </Suspense>
+                )}
+
                 <Suspense fallback={<SectionLoading />}>
                   <TripPlans
                     tripPlans={tripPlans}
@@ -393,6 +410,12 @@ export default function Home() {
                 />
               </Suspense>
 
+              {aiEnabled && (
+                <Suspense fallback={<SectionLoading />}>
+                  <AIListBuilder items={shoppingLists.items} onItemsChange={shoppingLists.setItems} />
+                </Suspense>
+              )}
+
               <Suspense fallback={<SectionLoading />}>
                 <LocationPreferences
                   location={location}
@@ -433,6 +456,12 @@ export default function Home() {
                 </Suspense>
               ) : (
                 <MapComingSoon />
+              )}
+
+              {aiEnabled && (
+                <Suspense fallback={null}>
+                  <Deals />
+                </Suspense>
               )}
 
               <Suspense fallback={<SectionLoading />}>

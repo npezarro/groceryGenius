@@ -121,7 +121,7 @@ describe("Scheduler", () => {
         { source: "kroger", pricesCreated: 10, errors: [] },
       ]);
       const result = await triggerManualRun();
-      expect(mockRunAllAdapters).toHaveBeenCalledWith("94102");
+      expect(mockRunAllAdapters).toHaveBeenCalledWith("94118");
       expect(result).toEqual({
         ok: true,
         results: [{ source: "kroger", pricesCreated: 10, errors: [] }],
@@ -196,7 +196,7 @@ describe("Scheduler", () => {
         errors: [],
       });
       const result = await triggerSingleRun("kroger");
-      expect(mockRunAdapter).toHaveBeenCalledWith("kroger", "auto", "94102");
+      expect(mockRunAdapter).toHaveBeenCalledWith("kroger", "auto", "94118");
       expect(result).toEqual({
         source: "kroger",
         pricesCreated: 5,
@@ -223,7 +223,7 @@ describe("Scheduler", () => {
       const cronCallback = mockSchedule.mock.calls[0][1] as () => Promise<void>;
       await cronCallback();
 
-      expect(mockRunAllAdapters).toHaveBeenCalledWith("94102");
+      expect(mockRunAllAdapters).toHaveBeenCalledWith("94118");
     });
 
     it("skips if a previous cron run is still in progress", async () => {

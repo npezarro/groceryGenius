@@ -419,10 +419,10 @@ describe("runAllAdapters", () => {
     expect(results[0].errors[0]).toBe("fatal");
   });
 
-  it("uses default zipCode 94102", async () => {
+  it("uses default zipCode 94118", async () => {
     mockKrogerConfigured.mockReturnValue(false);
     await runAllAdapters();
-    expect(mockBlsFetch).toHaveBeenCalledWith("auto", "94102");
+    expect(mockBlsFetch).toHaveBeenCalledWith("auto", "94118");
   });
 
   it("runs multiple configured adapters sequentially", async () => {
