@@ -70,7 +70,16 @@ async function main() {
   }
 
   const allStores = await storage.getAllStores();
-  const summary = { ok: 0, noText: 0, noItems: 0, failed: 0, prices: 0, storesCreated: 0 };
+  const summary = { ok: 0, noText: 0, noItems: 0, failed: 0, prices: 0, storesCreated: 0, dup: 0 };
+
+  // Idempotency guard: skip a parse that matches an existing community receipt
+  // (same store + date + item count), so re-runs don't duplicate.
+  const existing = await db.select({
+    storeName: receipts.storeName, purchaseDate: receipts.purchaseDate, parsedItems: receipts.parsedItems,
+  }).from(receipts).where(eq(receipts.userId, community.id));
+  const seenKeys = new Set(
+    existing.map((r) => `${(r.storeName || "").toLowerCase()}|${r.purchaseDate ? new Date(r.purchaseDate).toISOString().slice(0, 10) : ""}|${Array.isArray(r.parsedItems) ? r.parsedItems.length : 0}`),
+  );
 
   for (const file of files) {
     const path = join(dir, file);
@@ -81,6 +90,10 @@ async function main() {
 
       const parsed = await parseReceiptText(text);
       if (parsed.items.length === 0) { summary.noItems++; console.log(`  ${file}: parsed 0 items`); continue; }
+
+      const dupKey = `${(parsed.storeName || "").toLowerCase()}|${parsed.purchaseDate || ""}|${parsed.items.length}`;
+      if (seenKeys.has(dupKey)) { summary.dup++; console.log(`  ${file}: duplicate, skipped`); continue; }
+      seenKeys.add(dupKey);
 
       // Resolve store: match by name, else create from printed name/location.
       let storeId: string | undefined;
