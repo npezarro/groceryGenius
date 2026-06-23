@@ -10,6 +10,7 @@
  * All times are staggered to avoid running everything simultaneously.
  */
 
+import { DEFAULT_ZIP } from "../config";
 import cron, { type ScheduledTask } from "node-cron";
 import { runAllAdapters, getAdapter, runAdapter, getLastSuccessfulRun, getRecentRuns } from "./index";
 import type { PipelineResult } from "./types";
@@ -87,7 +88,7 @@ export function startScheduler(): void {
       }
 
       console.log("[scheduler] Running all adapters...");
-      const results = await runAllAdapters("94102"); // SF zip code
+      const results = await runAllAdapters(DEFAULT_ZIP);
       const totalPrices = results.reduce((sum, r) => sum + r.pricesCreated, 0);
       const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0);
       console.log(`[scheduler] Completed: ${totalPrices} prices from ${results.length} sources, ${totalErrors} errors`);
@@ -114,7 +115,7 @@ export function stopScheduler(): void {
 }
 
 /** Trigger an immediate run of all adapters (for manual/API use) */
-export async function triggerManualRun(zipCode: string = "94102"): Promise<{ error: string } | { ok: true; results: PipelineResult[] }> {
+export async function triggerManualRun(zipCode: string = DEFAULT_ZIP): Promise<{ error: string } | { ok: true; results: PipelineResult[] }> {
   if (isRunning) {
     return { error: "A pipeline run is already in progress" };
   }
@@ -128,7 +129,7 @@ export async function triggerManualRun(zipCode: string = "94102"): Promise<{ err
 }
 
 /** Trigger a single adapter run */
-export async function triggerSingleRun(sourceId: string, zipCode: string = "94102"): Promise<{ error: string } | PipelineResult> {
+export async function triggerSingleRun(sourceId: string, zipCode: string = DEFAULT_ZIP): Promise<{ error: string } | PipelineResult> {
   const adapter = getAdapter(sourceId);
   if (!adapter) {
     return { error: `Unknown source: ${sourceId}` };

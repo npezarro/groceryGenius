@@ -106,13 +106,19 @@ export class DatabaseStorage {
 
   // ── Price methods ───────────────────────────────────
 
-  async getPricesForItems(itemIds: string[], storeIds?: string[]): Promise<Price[]> {
+  async getPricesForItems(itemIds: string[], storeIds?: string[], maxAgeDays?: number): Promise<Price[]> {
+    const conditions = [inArray(prices.itemId, itemIds)];
     if (storeIds && storeIds.length > 0) {
-      return await db.select().from(prices).where(
-        and(inArray(prices.itemId, itemIds), inArray(prices.storeId, storeIds))
-      );
+      conditions.push(inArray(prices.storeId, storeIds));
     }
-    return await db.select().from(prices).where(inArray(prices.itemId, itemIds));
+    // Freshness window: exclude stale prices (e.g. seed data) so trip plans and
+    // comparisons reflect only recently captured prices. Omit to include all history.
+    if (maxAgeDays && maxAgeDays > 0) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - maxAgeDays);
+      conditions.push(sql`${prices.capturedAt} >= ${cutoff}`);
+    }
+    return await db.select().from(prices).where(and(...conditions));
   }
 
   async getExistingPricePairs(storeIds: string[], itemIds: string[]): Promise<Array<{storeId: string, itemId: string}>> {
