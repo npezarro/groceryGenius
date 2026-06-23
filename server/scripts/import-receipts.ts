@@ -125,6 +125,7 @@ async function main() {
         const capturedAt = parsed.purchaseDate ? new Date(parsed.purchaseDate) : new Date();
         const priceRows = [];
         for (const it of parsed.items) {
+          if (it.price == null || it.price <= 0) continue; // data point only, no price row
           const item = await storage.findOrCreateItem(it.name, it.unit);
           priceRows.push({
             itemId: item.id,

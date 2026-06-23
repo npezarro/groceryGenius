@@ -628,9 +628,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         total: r.totalAmount != null ? Number(r.totalAmount) : null,
         items: (Array.isArray(r.parsedItems) ? r.parsedItems : []).map((it) => {
           const o = (it ?? {}) as Record<string, unknown>;
+          const p = Number(o.price);
           return {
             name: String(o.name ?? ""),
-            price: Number(o.price) || 0,
+            price: Number.isFinite(p) && p > 0 ? p : null,
             discount: o.discount != null ? Number(o.discount) : undefined,
             originalPrice: o.originalPrice != null ? Number(o.originalPrice) : undefined,
           };

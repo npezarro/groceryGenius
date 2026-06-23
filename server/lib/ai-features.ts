@@ -211,7 +211,8 @@ Respond with ONLY a JSON array (may be empty), each element:
 
 export interface ParsedReceiptItem {
   name: string;
-  price: number;
+  /** Per-line price paid; may be absent when the receipt/OCR has no price. */
+  price?: number;
   quantity?: number;
   unit?: string;
   /** Pre-discount price if the receipt shows a markdown/sale on this line. */
@@ -260,14 +261,14 @@ Respond with ONLY JSON:
     if (!el || typeof el !== "object") continue;
     const o = el as Record<string, unknown>;
     const name = String(o.name ?? "").trim();
+    if (!name) continue;
     const price = Number(o.price);
-    if (!name || !Number.isFinite(price) || price <= 0) continue;
     const qty = Number(o.quantity);
     const orig = Number(o.originalPrice);
     const disc = Number(o.discount);
     items.push({
       name,
-      price,
+      price: Number.isFinite(price) && price > 0 ? price : undefined,
       quantity: Number.isFinite(qty) && qty > 0 ? qty : undefined,
       unit: o.unit ? String(o.unit).trim() : undefined,
       originalPrice: Number.isFinite(orig) && orig > price ? orig : undefined,

@@ -6,7 +6,7 @@ import type { LocationCoordinates } from "@/lib/types";
 
 interface DataPointItem {
   name: string;
-  price: number;
+  price: number | null;
   discount?: number;
   originalPrice?: number;
 }
@@ -74,7 +74,7 @@ function StoreCard({ entry }: { entry: DirEntry }) {
                   <li key={j} className="flex items-center justify-between gap-2">
                     <span className="truncate">{it.name}</span>
                     <span className="shrink-0">
-                      ${it.price.toFixed(2)}
+                      {it.price != null ? `$${it.price.toFixed(2)}` : <span className="text-muted-foreground">—</span>}
                       {it.discount ? <span className="text-[#2f5d4d]"> (-${it.discount.toFixed(2)})</span> : null}
                     </span>
                   </li>
