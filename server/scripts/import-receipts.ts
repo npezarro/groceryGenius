@@ -17,6 +17,7 @@ import { readdirSync, statSync } from "fs";
 import { readFile } from "fs/promises";
 import { join, extname } from "path";
 import { createRequire } from "module";
+import { eq } from "drizzle-orm";
 
 // Load production env from the PM2 ecosystem file if not already set, so this
 // script sees DATABASE_URL / CLAUDE_BRIDGE_URL / CLAUDE_BRIDGE_SECRET.
