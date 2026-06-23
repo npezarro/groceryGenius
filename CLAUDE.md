@@ -79,3 +79,30 @@ groceryGenius uses Vitest (`npx vitest` / `npm test`). Test rules tuned for this
 - **Don't mock the database.** Mock/prod divergence is the #1 source of false-green tests. Hit a real test DB or use the same Drizzle schema definitions the application uses — do not duplicate DDL inline in tests (silent fixture schema drift).
 - **Test glob quoting on CI:** Use a flat glob (`test/*.test.ts`) or let Vitest discover via config. Single-quoted `**/*.test.ts` does not expand on GitHub Actions because globstar is off by default.
 - **CI uses Node 22** (current LTS). Don't pin Node 20 — it reached EOL April 30, 2026.
+
+## AI Features (alt-account Claude bridge)
+
+AI features route through `grocerygenius-bridge` (`~/repos/grocerygenius-bridge`,
+github npezarro/grocerygenius-bridge), a Docker container fronting the alt
+Anthropic account — never the primary. Mirrors shopper/foodie/travel/runeval.
+
+- **Why alt account:** Grocery Genius is public with open text fields (meal-plan
+  input). Isolates billing/rate limits and shrinks prompt-injection blast radius.
+- **Wiring:** `server/lib/ai-bridge.ts` POSTs `{prompt, model}` with the
+  `x-bridge-secret` header to `CLAUDE_BRIDGE_URL` (`http://127.0.0.1:3098` via the
+  reverse SSH tunnel). Falls back to `AIUnavailableError` (503) when unset.
+- **Models:** Haiku default, Sonnet max. Opus is disallowed at the bridge.
+- **Grounding rule:** AI structures/judges REAL data; it must not invent prices.
+  Feature functions in `server/lib/ai-features.ts` take DB data as input and
+  validate every parsed field against the source set before returning.
+- **Endpoints:** `POST /api/ai/meal-plan` (text→list), `POST /api/ai/substitutions`
+  (grounded cheaper swaps), `GET /api/ai/deals` (active promos + AI blurb),
+  `POST /api/user/receipts/:id/parse` (tesseract OCR → `parseReceiptText`),
+  `GET /api/ai/status` (enabled flag). Trip planner takes `smartMatch: true` to
+  AI-map unmatched items to catalog names.
+- **Receipt OCR:** `server/lib/ocr.ts` shells out to the `tesseract` binary
+  (must be installed on the host: `apt-get install tesseract-ocr`). The bridge is
+  text-only, so photos become text via OCR first, then the model structures them.
+- **Data strategy:** Receipt ingest is the price-acquisition path for stores that
+  can't be scraped from the VM IP (Safeway/Target/Costco/Whole Foods — anti-bot
+  or client-rendered). Scraping covers Kroger(FoodsCo)/Trader Joe's/BLS.

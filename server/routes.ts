@@ -22,6 +22,15 @@ import {
 import { geocodeAddress } from "./lib/geocoding";
 import { deduplicateLatestByStore, parseDaysParam } from "./lib/price-queries";
 import { PRICE_FRESHNESS_DAYS, DEFAULT_ZIP } from "./config";
+import { aiEnabled, AIUnavailableError } from "./lib/ai-bridge";
+import {
+  mealPlanToList,
+  matchItemsAI,
+  suggestSubstitutions,
+  parseReceiptText,
+  type SubstitutionCandidate,
+} from "./lib/ai-features";
+import { ocrBase64, OCRUnavailableError } from "./lib/ocr";
 
 // Trip planning algorithm
 
@@ -31,11 +40,39 @@ async function generateTripPlans(
   userLng: number,
   radiusMiles: number,
   weights: { price: number; time: number; distance: number },
-  userHasMembership: boolean = false
+  userHasMembership: boolean = false,
+  smartMatch: boolean = false
 ) {
   // Find items by fuzzy matching
   const allItems = await storage.getAllItems();
-  const matchedItems = matchItems(itemNames, allItems);
+  let matchedItems = matchItems(itemNames, allItems);
+
+  // Optional AI semantic matching: when the deterministic matcher leaves items
+  // unmatched (e.g. "whole milk" vs "Milk, Whole, 1 Gallon"), ask the bridge to
+  // map the unmatched user names to real catalog names, then re-match.
+  if (smartMatch && aiEnabled() && matchedItems.length < itemNames.length) {
+    const matchedNames = new Set(matchedItems.map((i) => i.name.toLowerCase()));
+    const unmatched = itemNames.filter((n) => {
+      const lower = n.toLowerCase();
+      return !allItems.some(
+        (it) => it.name.toLowerCase() === lower || matchedNames.has(it.name.toLowerCase()),
+      );
+    });
+    if (unmatched.length > 0) {
+      try {
+        const mapping = await matchItemsAI(unmatched, allItems.map((i) => i.name));
+        const aiNames = Object.values(mapping).filter((v): v is string => Boolean(v));
+        if (aiNames.length > 0) {
+          const extra = matchItems(aiNames, allItems);
+          const seen = new Set(matchedItems.map((i) => i.id));
+          matchedItems = [...matchedItems, ...extra.filter((i) => !seen.has(i.id))];
+        }
+      } catch (err) {
+        // AI matching is best-effort; fall back to deterministic matches.
+        console.warn("[trip-plan] smartMatch failed:", err instanceof Error ? err.message : err);
+      }
+    }
+  }
 
   if (matchedItems.length === 0) return [];
 
@@ -358,18 +395,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           time: z.number().min(0).max(1),
           distance: z.number().min(0).max(1)
         }),
-        userHasMembership: z.boolean().optional().default(false)
+        userHasMembership: z.boolean().optional().default(false),
+        smartMatch: z.boolean().optional().default(false)
       });
 
-      const { items, location, radius, weights, userHasMembership } = schema.parse(req.body);
-      
+      const { items, location, radius, weights, userHasMembership, smartMatch } = schema.parse(req.body);
+
       const tripPlans = await generateTripPlans(
         items,
         location.lat,
         location.lng,
         radius,
         weights,
-        userHasMembership
+        userHasMembership,
+        smartMatch
       );
 
       res.json(tripPlans);
@@ -379,6 +418,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Trip planning error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Trip planning failed" });
+    }
+  });
+
+  // ── AI features (alt-account Claude bridge) ──────────
+
+  // AI availability flag for the client to show/hide AI affordances.
+  router.get("/api/ai/status", (_req: Request, res: Response) => {
+    res.json({ enabled: aiEnabled() });
+  });
+
+  function handleAIError(res: Response, error: unknown, label: string) {
+    if (error instanceof AIUnavailableError || error instanceof OCRUnavailableError) {
+      return res.status(503).json({ error: error.message });
+    }
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error(`${label} error:`, error);
+    res.status(500).json({ error: `${label} failed` });
+  }
+
+  // 1. Meal plan / free text -> structured shopping list
+  router.post("/api/ai/meal-plan", async (req: Request, res: Response) => {
+    try {
+      const { text } = z.object({ text: z.string().min(1).max(8000) }).parse(req.body);
+      const items = await mealPlanToList(text);
+      res.json({ items });
+    } catch (error) {
+      handleAIError(res, error, "Meal plan");
+    }
+  });
+
+  // 2. Substitutions — cheaper, sensible swaps grounded in real nearby prices
+  router.post("/api/ai/substitutions", async (req: Request, res: Response) => {
+    try {
+      const { itemName } = z.object({ itemName: z.string().min(1).max(200) }).parse(req.body);
+
+      const matches = await storage.searchItems(itemName);
+      const target = matches[0];
+      if (!target) return res.json({ target: itemName, suggestions: [], note: "Item not found" });
+
+      const stores = await storage.getAllStores();
+      const storeName = new Map(stores.map((s) => [s.id, s.name]));
+
+      // Target's cheapest fresh price
+      const targetPrices = await storage.getPricesForItems([target.id], undefined, PRICE_FRESHNESS_DAYS);
+      const targetPrice = targetPrices
+        .map((p) => parseFloat(p.price))
+        .filter((n) => !isNaN(n))
+        .sort((a, b) => a - b)[0];
+      if (targetPrice == null) return res.json({ target: target.name, suggestions: [], note: "No recent price" });
+
+      // Candidate pool: items sharing the head keyword, cheaper than the target
+      const keyword = target.name.split(/[\s,]+/).filter((w) => w.length > 2).pop() || target.name;
+      const related = (await storage.searchItems(keyword)).filter((i) => i.id !== target.id).slice(0, 40);
+      const relPrices = await storage.getPricesForItems(related.map((i) => i.id), undefined, PRICE_FRESHNESS_DAYS);
+      const cheapestByItem = new Map<string, { price: number; storeId: string }>();
+      for (const p of relPrices) {
+        const v = parseFloat(p.price);
+        if (isNaN(v)) continue;
+        const cur = cheapestByItem.get(p.itemId);
+        if (!cur || v < cur.price) cheapestByItem.set(p.itemId, { price: v, storeId: p.storeId });
+      }
+      const candidates: SubstitutionCandidate[] = related
+        .map((i) => {
+          const c = cheapestByItem.get(i.id);
+          return c && c.price < targetPrice
+            ? { itemId: i.id, name: i.name, price: c.price, storeName: storeName.get(c.storeId) || "a nearby store" }
+            : null;
+        })
+        .filter((c): c is SubstitutionCandidate => c != null)
+        .sort((a, b) => a.price - b.price)
+        .slice(0, 25);
+
+      const suggestions = await suggestSubstitutions({ name: target.name, price: targetPrice }, candidates);
+      res.json({ target: target.name, targetPrice, suggestions });
+    } catch (error) {
+      handleAIError(res, error, "Substitutions");
+    }
+  });
+
+  // 3. Deals — active promotions, ranked, with AI-written shopper blurbs
+  router.get("/api/ai/deals", async (_req: Request, res: Response) => {
+    try {
+      const promos = await storage.getPromotionalPrices();
+      const items = await storage.getAllItems();
+      const stores = await storage.getAllStores();
+      const itemName = new Map(items.map((i) => [i.id, i.name]));
+      const storeName = new Map(stores.map((s) => [s.id, s.name]));
+
+      const deals = promos
+        .map((p) => {
+          const price = parseFloat(p.price);
+          const orig = p.originalPrice ? parseFloat(p.originalPrice) : NaN;
+          const savings = !isNaN(orig) && orig > price ? orig - price : 0;
+          return {
+            item: itemName.get(p.itemId) || "Unknown",
+            store: storeName.get(p.storeId) || "Unknown",
+            price,
+            originalPrice: !isNaN(orig) ? orig : undefined,
+            savings,
+            promotionText: p.promotionText || undefined,
+          };
+        })
+        .filter((d) => d.savings > 0)
+        .sort((a, b) => b.savings - a.savings)
+        .slice(0, 25);
+
+      let summary: string | undefined;
+      if (deals.length > 0 && aiEnabled()) {
+        try {
+          const { callBridge } = await import("./lib/ai-bridge");
+          summary = await callBridge(
+            `Write 2-3 short, upbeat sentences highlighting the best of these grocery deals for a shopper. Mention specific items and savings. No markdown.\n\n` +
+              deals
+                .slice(0, 10)
+                .map((d) => `- ${d.item} at ${d.store}: $${d.price.toFixed(2)}${d.originalPrice ? ` (was $${d.originalPrice.toFixed(2)}, save $${d.savings.toFixed(2)})` : ""}`)
+                .join("\n"),
+            "haiku",
+          );
+        } catch {
+          /* summary is optional */
+        }
+      }
+      res.json({ deals, summary });
+    } catch (error) {
+      handleAIError(res, error, "Deals");
+    }
+  });
+
+  // 4. Receipt ingest — OCR the stored photo, structure it, save items + prices
+  router.post("/api/user/receipts/:id/parse", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const receipt = await storage.getReceipt(req.params.id, req.session.userId!);
+      if (!receipt) return res.status(404).json({ error: "Receipt not found" });
+      if (!receipt.imageData) return res.status(400).json({ error: "Receipt has no image to parse" });
+
+      const ocrText = await ocrBase64(receipt.imageData);
+      if (!ocrText || ocrText.length < 8) {
+        return res.status(422).json({ error: "Could not read any text from the receipt image" });
+      }
+      const parsed = await parseReceiptText(ocrText);
+
+      const updated = await storage.updateReceipt(req.params.id, req.session.userId!, {
+        storeName: parsed.storeName ?? receipt.storeName ?? undefined,
+        purchaseDate: parsed.purchaseDate ? new Date(parsed.purchaseDate) : undefined,
+        totalAmount: parsed.total != null ? String(parsed.total) : undefined,
+        parsedItems: parsed.items,
+        status: "processed",
+      });
+
+      res.json({ receipt: updated, parsed });
+    } catch (error) {
+      handleAIError(res, error, "Receipt parse");
     }
   });
 
