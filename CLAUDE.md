@@ -21,7 +21,7 @@
 - **PM2 process**: grocerygenius (id 4)
 - **Deploy**: production VM via Apache ProxyPass to localhost:8080 (see privateContext/infrastructure.md)
 - **Database**: local PostgreSQL via DATABASE_URL
-- **Required env**: SESSION_SECRET, DATABASE_URL; optional: ADMIN_KEY, MAPBOX_ACCESS_TOKEN
+- **Required env**: SESSION_SECRET, DATABASE_URL; optional: ADMIN_KEY, MAPBOX_ACCESS_TOKEN, CLAUDE_BRIDGE_URL (AI features), DEFAULT_ZIP (default: `94118`), PRICE_FRESHNESS_DAYS (default: `21`)
 
 ## Pipeline Adapter Gotchas
 - **External data fields are not always strings.** Grocery API responses return prices, sizes, and names as `number | null | undefined` even when typed as `string`. Always wrap with `String(x)` before calling `.match()`, `.toLowerCase()`, `.trim()`, or any string method. Add a null-check first: `if (!x) return undefined;`. Failing to do this causes `TypeError: x.match is not a function` crashes in the normalizer/validator pipeline.
