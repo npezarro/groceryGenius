@@ -5,7 +5,45 @@
  * model structures/judges real data, it does not invent prices.
  */
 
-import { callBridgeJson, type BridgeModel } from "./ai-bridge";
+import { callBridge, callBridgeJson, type BridgeModel } from "./ai-bridge";
+
+/**
+ * Focused merchant identification fallback.
+ *
+ * The one-shot receipt parse sometimes misses the merchant when OCR garbles the
+ * header (e.g. a Costco logo OCR'd as "CosTrco"). This dedicated pass is tuned to
+ * recover the merchant from noisy text and is called when the primary parse
+ * returns no store name.
+ *
+ * Designed as a fallback CHAIN: an external second opinion (Codex vision on the
+ * image, or Gemini on the text) plugs in here when available; today both of those
+ * CLIs are unavailable (Codex model entitlement; Gemini free-tier deprecated), so
+ * the reliable tier is a focused pass on the alt-account Claude bridge.
+ */
+export async function identifyMerchant(ocrText: string): Promise<string | null> {
+  if (!ocrText || ocrText.trim().length < 8) return null;
+  const prompt = `This is noisy OCR from a receipt (any store or restaurant). The OCR may garble the merchant name (e.g. CosTrco=Costco, WHSE=warehouse, RCSS=Real Canadian Superstore). Identify the MERCHANT / store name.
+Reply with ONLY the merchant name (optionally a store number or city), or the single word UNKNOWN. No explanation.
+
+OCR:
+${ocrText.slice(0, 4000)}`;
+  let resp: string;
+  try {
+    resp = (await callBridge(prompt, "haiku")).trim();
+  } catch {
+    return null;
+  }
+  // Reject non-answers, refusals, and over-long prose.
+  if (
+    !resp ||
+    resp.length > 60 ||
+    /^unknown$/i.test(resp) ||
+    /\b(i (don'?t|do not|cannot|can't) (see|tell|identify)|please provide|no (ocr )?text)\b/i.test(resp)
+  ) {
+    return null;
+  }
+  return resp;
+}
 
 // ── 1. Meal plan / free text → structured shopping list ──
 
@@ -276,8 +314,14 @@ Respond with ONLY JSON:
     });
   }
   const total = Number(raw?.total);
+  let storeName = raw?.storeName ? String(raw.storeName).slice(0, 120) : undefined;
+  // Fallback: if the one-shot parse missed the merchant, run a focused pass.
+  if (!storeName || !storeName.trim()) {
+    const recovered = await identifyMerchant(ocrText);
+    if (recovered) storeName = recovered;
+  }
   return {
-    storeName: raw?.storeName ? String(raw.storeName).slice(0, 120) : undefined,
+    storeName,
     storeLocation: raw?.storeLocation ? String(raw.storeLocation).slice(0, 160) : undefined,
     purchaseDate: typeof raw?.purchaseDate === "string" ? raw.purchaseDate.slice(0, 10) : undefined,
     total: Number.isFinite(total) ? total : undefined,
