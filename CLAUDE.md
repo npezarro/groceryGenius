@@ -129,3 +129,20 @@ first-class community data.
   receipts are rotated), psm 4. Host needs `tesseract-ocr` + `imagemagick`.
 - **AI list organizer** (`POST /api/ai/organize-list`): groups any list into store
   aisles in shopping order. Needs no price data.
+
+## Price Directory + My Receipts (generic, not grocery-only)
+
+The app tracks prices across ANY store/restaurant type, not just grocery. The
+receipt parser and bridge context are store-type-agnostic.
+
+- **Price directory** (`PriceDirectory` UI): fuzzy store search → pick a location
+  (if a chain has several) → per-item table showing **latest price, when it was
+  last reported, and report count**. Endpoints: `GET /api/stores/search?q=`
+  (grouped by chain name with locations + coverage/report counts),
+  `GET /api/stores/:id/prices` (`storage.getStoreItemAggregates`: latest price via
+  `array_agg(... ORDER BY captured_at DESC)[1]`, `max(captured_at)`, `count`).
+- **My Receipts** (`MyReceipts` UI, signed-in only): a user's own uploads with
+  inline correction of store name, location, date, items, and prices. `PUT
+  /api/user/receipts/:id` edits metadata + parsedItems (price optional).
+  Community-imported receipts are owned by `community-receipts`, so they never
+  appear in a real user's My Receipts.
