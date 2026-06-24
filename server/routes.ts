@@ -622,6 +622,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Stores with receipt data must appear even when outside the radius or
+      // missing coordinates (receipt-created stores have no coords yet).
+      if (hasLoc) {
+        const present = new Set(stores.map((s) => s.id));
+        const missingIds = [...byStoreId.keys()].filter((id) => !present.has(id));
+        if (missingIds.length) {
+          const all = await storage.getAllStores();
+          stores.push(...all.filter((s) => missingIds.includes(s.id)));
+        }
+      }
+
       const toDataPoint = (r: typeof receipts[number], fallbackLoc?: string | null) => ({
         date: (r.purchaseDate ?? r.uploadedAt ?? null),
         location: r.storeLocation || fallbackLoc || null,
