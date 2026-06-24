@@ -51,6 +51,43 @@ export class DatabaseStorage {
     );
   }
 
+  /** Fuzzy store search by name or address (for the price directory). */
+  async searchStores(query: string, limit = 50): Promise<Store[]> {
+    const pattern = `%${escapeLikePattern(query)}%`;
+    return await db.select().from(stores).where(
+      sql`(${stores.name} ILIKE ${pattern} ESCAPE '\\' OR ${stores.address} ILIKE ${pattern} ESCAPE '\\')`
+    ).orderBy(asc(stores.name)).limit(limit);
+  }
+
+  /**
+   * Per-item price aggregates for a store: the latest price, when it was last
+   * reported, and how many reports exist. Drives the store price table.
+   */
+  async getStoreItemAggregates(storeId: string): Promise<Array<{
+    itemId: string;
+    name: string;
+    unit: string | null;
+    latestPrice: string | null;
+    lastReported: Date | null;
+    reportCount: number;
+  }>> {
+    const rows = await db.select({
+      itemId: items.id,
+      name: items.name,
+      unit: items.unit,
+      // latest price = price at the most recent capturedAt (Postgres DISTINCT ON style via window)
+      latestPrice: sql<string | null>`(array_agg(${prices.price} ORDER BY ${prices.capturedAt} DESC NULLS LAST))[1]`,
+      lastReported: sql<Date | null>`max(${prices.capturedAt})`,
+      reportCount: sql<number>`count(${prices.id})`,
+    })
+      .from(prices)
+      .innerJoin(items, eq(items.id, prices.itemId))
+      .where(eq(prices.storeId, storeId))
+      .groupBy(items.id, items.name, items.unit)
+      .orderBy(sql`max(${prices.capturedAt}) DESC NULLS LAST`);
+    return rows.map((r) => ({ ...r, reportCount: Number(r.reportCount) }));
+  }
+
   async createStore(store: InsertStore): Promise<Store> {
     const [newStore] = await db.insert(stores).values(store).returning();
     return newStore;

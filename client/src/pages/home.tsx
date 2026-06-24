@@ -24,7 +24,8 @@ const TripPlans = lazy(() => import("@/components/trip-plans"));
 const AdminPanel = lazy(() => import("@/components/admin-panel"));
 const AIListBuilder = lazy(() => import("@/components/ai-list-builder"));
 const Deals = lazy(() => import("@/components/deals"));
-const StoreDirectory = lazy(() => import("@/components/store-directory"));
+const PriceDirectory = lazy(() => import("@/components/price-directory"));
+const MyReceipts = lazy(() => import("@/components/my-receipts"));
 
 const isMapEnabled = import.meta.env.VITE_ENABLE_MAP === "true";
 
@@ -335,6 +336,11 @@ export default function Home() {
                 <Suspense fallback={<SectionLoading />}>
                   <ReceiptUpload stores={stores} />
                 </Suspense>
+                {user && (
+                  <Suspense fallback={<SectionLoading />}>
+                    <MyReceipts />
+                  </Suspense>
+                )}
               </div>
             </TabsContent>
 
@@ -370,7 +376,7 @@ export default function Home() {
                 </Suspense>
 
                 <Suspense fallback={<SectionLoading />}>
-                  <StoreDirectory coordinates={coordinates} />
+                  <PriceDirectory />
                 </Suspense>
 
                 <Suspense fallback={null}>
@@ -449,6 +455,11 @@ export default function Home() {
               <Suspense fallback={<SectionLoading />}>
                 <ReceiptUpload stores={stores} />
               </Suspense>
+              {user && (
+                <Suspense fallback={<SectionLoading />}>
+                  <MyReceipts />
+                </Suspense>
+              )}
             </div>
 
             {/* Main Content */}
@@ -481,7 +492,7 @@ export default function Home() {
               </Suspense>
 
               <Suspense fallback={<SectionLoading />}>
-                <StoreDirectory coordinates={coordinates} />
+                <PriceDirectory />
               </Suspense>
 
               <Suspense fallback={null}>

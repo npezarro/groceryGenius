@@ -696,6 +696,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Fuzzy store search -> grouped by name, each with its locations (price directory)
+  router.get("/api/stores/search", async (req: Request, res: Response) => {
+    try {
+      const q = String(req.query.q ?? "").trim();
+      const matched = q ? await storage.searchStores(q) : await storage.getAllStores();
+      const coverage = await storage.getStoreCoverageCounts();
+      const receipts = await storage.getAnonymizedReceipts();
+      const reportsByStore = new Map<string, number>();
+      for (const r of receipts) {
+        if (r.storeId && Array.isArray(r.parsedItems) && r.parsedItems.length) {
+          reportsByStore.set(r.storeId, (reportsByStore.get(r.storeId) ?? 0) + 1);
+        }
+      }
+      // Group by chain name; each group lists its locations.
+      const groups = new Map<string, Array<Record<string, unknown>>>();
+      for (const s of matched) {
+        const loc = {
+          id: s.id, name: s.name, address: s.address, lat: s.lat, lng: s.lng,
+          coverage: coverage.get(s.id) ?? 0, reports: reportsByStore.get(s.id) ?? 0,
+        };
+        const key = s.name.toLowerCase().trim();
+        (groups.get(key) ?? groups.set(key, []).get(key)!).push(loc);
+      }
+      const results = [...groups.values()]
+        .map((locations) => ({
+          name: String(locations[0].name),
+          locations: locations.sort((a, b) => Number(b.coverage) + Number(b.reports) - (Number(a.coverage) + Number(a.reports))),
+          totalCoverage: locations.reduce((n, l) => n + Number(l.coverage), 0),
+          totalReports: locations.reduce((n, l) => n + Number(l.reports), 0),
+        }))
+        .sort((a, b) => (b.totalCoverage + b.totalReports) - (a.totalCoverage + a.totalReports))
+        .slice(0, 60);
+      res.json({ results });
+    } catch (error) {
+      console.error("Store search error:", error);
+      res.status(500).json({ error: "Store search failed" });
+    }
+  });
+
+  // Per-store item price table: latest price, last reported, report count
+  router.get("/api/stores/:id/prices", async (req: Request, res: Response) => {
+    try {
+      const all = await storage.getAllStores();
+      const store = all.find((s) => s.id === req.params.id);
+      if (!store) return res.status(404).json({ error: "Store not found" });
+      const items = await storage.getStoreItemAggregates(req.params.id);
+      res.json({
+        store: { id: store.id, name: store.name, address: store.address, lat: store.lat, lng: store.lng },
+        items: items.map((i) => ({
+          name: i.name,
+          unit: i.unit,
+          latestPrice: i.latestPrice != null ? Number(i.latestPrice) : null,
+          lastReported: i.lastReported,
+          reportCount: i.reportCount,
+        })),
+      });
+    } catch (error) {
+      console.error("Store prices error:", error);
+      res.status(500).json({ error: "Failed to load store prices" });
+    }
+  });
+
   // CSV import endpoints
   router.post("/api/import/stores", async (req: Request, res: Response) => {
     if (!isAuthorized(req)) {
@@ -1022,16 +1084,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.put("/api/user/receipts/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const body = z.object({
+        storeName: z.string().max(120).optional(),
+        storeLocation: z.string().max(160).optional(),
+        purchaseDate: z.string().optional(),
         parsedItems: z.array(z.object({
-          name: z.string(),
-          price: z.number(),
+          name: z.string().min(1),
+          price: z.number().optional(),
           quantity: z.number().optional(),
           unit: z.string().optional(),
-        })).max(200),
+          originalPrice: z.number().optional(),
+          discount: z.number().optional(),
+        })).max(200).optional(),
       }).parse(req.body);
 
       const receipt = await storage.updateReceipt(req.params.id, req.session.userId!, {
-        parsedItems: body.parsedItems,
+        ...(body.storeName !== undefined ? { storeName: body.storeName } : {}),
+        ...(body.storeLocation !== undefined ? { storeLocation: body.storeLocation } : {}),
+        ...(body.purchaseDate ? { purchaseDate: new Date(body.purchaseDate) } : {}),
+        ...(body.parsedItems ? { parsedItems: body.parsedItems } : {}),
         status: "processed",
       });
       if (!receipt) {

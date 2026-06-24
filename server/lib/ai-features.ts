@@ -236,7 +236,7 @@ export interface ParsedReceipt {
  * Captures per-line discounts and the store location for the store directory.
  */
 export async function parseReceiptText(ocrText: string): Promise<ParsedReceipt> {
-  const prompt = `Parse this grocery receipt OCR text into structured data. OCR is noisy; infer sensible product names.
+  const prompt = `Parse this receipt OCR text into structured data. The receipt may be from ANY business: a grocery store, restaurant, cafe, kitchenware shop, hardware store, pharmacy, etc. OCR is noisy; infer sensible product/menu-item names.
 
 Receipt text:
 """
@@ -244,11 +244,11 @@ ${ocrText.slice(0, 6000)}
 """
 
 Rules:
-- Expand abbreviated product names to readable grocery names when confident.
+- Expand abbreviated product or menu-item names to readable names when confident.
 - price is the per-line price actually paid in dollars (after any discount).
 - If a line shows a sale/markdown/coupon, set originalPrice (pre-discount) and discount (dollars off).
-- Skip non-item lines (subtotal, tax, total, payment, change, loyalty balance).
-- Capture the store name, the store street/city location, and the purchase date if present.
+- Skip non-item lines (subtotal, tax, tip, total, payment, change, loyalty balance).
+- Capture the store/restaurant name, its street/city location, and the purchase date if present.
 
 Respond with ONLY JSON:
 {"storeName": string|null, "storeLocation": string|null, "purchaseDate": "YYYY-MM-DD"|null, "total": number|null,
