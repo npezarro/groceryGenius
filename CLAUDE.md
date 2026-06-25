@@ -21,7 +21,7 @@
 - **PM2 process**: grocerygenius (id 4)
 - **Deploy**: production VM via Apache ProxyPass to localhost:8080 (see privateContext/infrastructure.md)
 - **Database**: local PostgreSQL via DATABASE_URL
-- **Required env**: SESSION_SECRET, DATABASE_URL; optional: ADMIN_KEY, MAPBOX_ACCESS_TOKEN, CLAUDE_BRIDGE_URL (AI features), DEFAULT_ZIP (default: `94118`), PRICE_FRESHNESS_DAYS (default: `21`)
+- **Required env**: SESSION_SECRET, DATABASE_URL; optional: ADMIN_KEY, MAPBOX_ACCESS_TOKEN, CLAUDE_BRIDGE_URL (AI features), DEFAULT_ZIP (default: `94118`), PRICE_FRESHNESS_DAYS (default: `21`), CODEX_MERCHANT_VISION (set to `1` to enable Codex vision merchant tier in the batch importer; requires `codex` CLI installed and authed on the host)
 
 ## Pipeline Adapter Gotchas
 - **External data fields are not always strings.** Grocery API responses return prices, sizes, and names as `number | null | undefined` even when typed as `string`. Always wrap with `String(x)` before calling `.match()`, `.toLowerCase()`, `.trim()`, or any string method. Add a null-check first: `if (!x) return undefined;`. Failing to do this causes `TypeError: x.match is not a function` crashes in the normalizer/validator pipeline.
@@ -125,6 +125,7 @@ first-class community data.
   (system user `community-receipts`, no image) + price rows. Idempotent (skips a
   duplicate store+date+itemcount). Run from the app dir:
   `./node_modules/.bin/tsx server/scripts/import-receipts.ts <folder>`.
+  - **Merchant fallback chain (top → bottom):** (1) Codex vision (`codexMerchant`, reads the receipt image pixels via `codex` CLI — recovers merchants that OCR garbles; enabled by `CODEX_MERCHANT_VISION=1`, WSL host only — not available on the VM); (2) AI text parse via Claude bridge. Codex tier fires only when the text parse returns no `storeName`.
 - **OCR** (`server/lib/ocr.ts`): EXIF auto-orient + tesseract OSD rotation (phone
   receipts are rotated), psm 4. Host needs `tesseract-ocr` + `imagemagick`.
 - **AI list organizer** (`POST /api/ai/organize-list`): groups any list into store
