@@ -17,7 +17,38 @@ import { readdirSync, statSync } from "fs";
 import { readFile } from "fs/promises";
 import { join, extname } from "path";
 import { createRequire } from "module";
+import { spawn } from "child_process";
 import { eq } from "drizzle-orm";
+
+/**
+ * Top-tier merchant fallback: Codex VISION on the receipt image. Reads the logo
+ * and header pixels, so it recovers merchants that OCR garbles (e.g. a Costco or
+ * Safeway logo OCR'd to noise). Enabled with CODEX_MERCHANT_VISION=1 and only
+ * works where the `codex` CLI is installed/authed (WSL host, not the VM). Returns
+ * null on any failure so the caller falls back to the text (Claude bridge) tier.
+ */
+function codexMerchant(imagePath: string): Promise<string | null> {
+  if (process.env.CODEX_MERCHANT_VISION !== "1") return Promise.resolve(null);
+  const prompt = "What store or merchant issued this receipt? Reply with ONLY the merchant name plus store number and city if visible, or the single word UNKNOWN.";
+  return new Promise((resolve) => {
+    const proc = spawn("codex", ["exec", "--skip-git-repo-check", "-i", imagePath], {
+      stdio: ["pipe", "pipe", "pipe"], timeout: 120_000,
+    });
+    let out = "";
+    proc.stdout.on("data", (d) => { out += d.toString(); });
+    proc.on("error", () => resolve(null));
+    proc.stdin.write(prompt);
+    proc.stdin.end();
+    proc.on("close", () => {
+      // Strip CLI noise + token-count lines; the merchant is the last real line.
+      const lines = out.split("\n").map((l) => l.replace(/\x1b\[[0-9;]*m/g, "").trim())
+        .filter((l) => l && !/^(codex|rollout|thread|Reading prompt|warning:|tokens used|\[)/i.test(l) && !/^[\d,]+$/.test(l) && !/ERROR:/.test(l));
+      const ans = lines[lines.length - 1] || "";
+      if (!ans || ans.length > 80 || /^unknown$/i.test(ans)) return resolve(null);
+      resolve(ans);
+    });
+  });
+}
 
 // Load production env from the PM2 ecosystem file if not already set, so this
 // script sees DATABASE_URL / CLAUDE_BRIDGE_URL / CLAUDE_BRIDGE_SECRET.
@@ -91,6 +122,16 @@ async function main() {
 
       const parsed = await parseReceiptText(text);
       if (parsed.items.length === 0) { summary.noItems++; console.log(`  ${file}: parsed 0 items`); continue; }
+
+      // Top-tier merchant fallback: if OCR + the text pass still didn't get the
+      // store, read the image with Codex vision.
+      if (!parsed.storeName || !parsed.storeName.trim()) {
+        const viaVision = await codexMerchant(path);
+        if (viaVision) {
+          parsed.storeName = viaVision;
+          console.log(`  ${file}: merchant via Codex vision -> ${viaVision}`);
+        }
+      }
 
       const dupKey = `${(parsed.storeName || "").toLowerCase()}|${parsed.purchaseDate || ""}|${parsed.items.length}`;
       if (seenKeys.has(dupKey)) { summary.dup++; console.log(`  ${file}: duplicate, skipped`); continue; }
