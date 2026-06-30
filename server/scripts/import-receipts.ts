@@ -123,14 +123,16 @@ async function main() {
       const parsed = await parseReceiptText(text);
       if (parsed.items.length === 0) { summary.noItems++; console.log(`  ${file}: parsed 0 items`); continue; }
 
-      // Top-tier merchant fallback: if OCR + the text pass still didn't get the
-      // store, read the image with Codex vision.
-      if (!parsed.storeName || !parsed.storeName.trim()) {
-        const viaVision = await codexMerchant(path);
-        if (viaVision) {
-          parsed.storeName = viaVision;
-          console.log(`  ${file}: merchant via Codex vision -> ${viaVision}`);
-        }
+      // Codex vision merchant tier. When enabled (CODEX_MERCHANT_VISION=1) it is
+      // the AUTHORITATIVE source — it reads logos/headers most accurately and
+      // returns the richest name (e.g. "Costco Wholesale #475, South SF"), so it
+      // overrides the one-shot/text-tier name when it returns a confident result.
+      // Self-gates on the env var and falls back to null (keeping the text name)
+      // when disabled or unsure. Only reachable where the codex CLI is authed.
+      const viaVision = await codexMerchant(path);
+      if (viaVision) {
+        parsed.storeName = viaVision;
+        console.log(`  ${file}: merchant via Codex vision -> ${viaVision}`);
       }
 
       const dupKey = `${(parsed.storeName || "").toLowerCase()}|${parsed.purchaseDate || ""}|${parsed.items.length}`;
