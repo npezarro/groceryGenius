@@ -1,5 +1,5 @@
 # context.md
-Last Updated: 2026-06-29 | Receipt merchant-ID fallback (text + Codex vision), price directory + my-receipts, AI features via alt-account bridge. VM synced to main (7c570b6) and redeployed (pm2 grocerygenius online, /api/ai/status 200). DEPLOY STATUS: current, none pending. `server/scripts/import-receipts.ts` is a manual WSL batch tool (Codex vision tier via CODEX_MERCHANT_VISION=1), not in the app runtime, so its commits need no service rebuild.
+Last Updated: 2026-06-30 | DEPLOY STATUS: current, none pending. PR #207 (claude/doc-sync-319) is a CLAUDE.md-only documentation update — no source code changed, no service rebuild or deploy required. VM synced to main (7c570b6) and redeployed (pm2 grocerygenius online, /api/ai/status 200). `server/scripts/import-receipts.ts` is a manual WSL batch tool (Codex vision tier via CODEX_MERCHANT_VISION=1), not in the app runtime.
 Last Updated: 2026-03-17 | Code splitting reduces largest JS chunk from 854KB to 376KB
 Current State: Build passes via `npm run build:deploy`. All 9 tests pass. Bundle is now split into 14 chunks via React.lazy routes, component-level Suspense, and Vite manualChunks. Largest chunk is vendor-charts (recharts) at 376KB; initial app shell + React is ~181KB.
 Open Work:
