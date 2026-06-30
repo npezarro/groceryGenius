@@ -125,7 +125,7 @@ first-class community data.
   (system user `community-receipts`, no image) + price rows. Idempotent (skips a
   duplicate store+date+itemcount). Run from the app dir:
   `./node_modules/.bin/tsx server/scripts/import-receipts.ts <folder>`.
-  - **Merchant fallback chain (top → bottom):** (1) Codex vision (`codexMerchant`, reads the receipt image pixels via `codex` CLI — recovers merchants that OCR garbles; enabled by `CODEX_MERCHANT_VISION=1`, WSL host only — not available on the VM); (2) AI text parse via Claude bridge. Codex tier fires only when the text parse returns no `storeName`.
+  - **Merchant identification:** When `CODEX_MERCHANT_VISION=1`, `codexMerchant` is the **authoritative** source — it always runs (regardless of whether the text parse found a name) and overrides the text-parse result when it returns a confident merchant name (e.g., "Costco Wholesale #475, South SF"). When disabled or when Codex returns null, the text-parse name is kept. WSL host only — `codex` CLI is not available on the VM.
 - **OCR** (`server/lib/ocr.ts`): EXIF auto-orient + tesseract OSD rotation (phone
   receipts are rotated), psm 4. Host needs `tesseract-ocr` + `imagemagick`.
 - **AI list organizer** (`POST /api/ai/organize-list`): groups any list into store
