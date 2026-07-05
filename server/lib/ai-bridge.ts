@@ -78,7 +78,7 @@ export async function callBridge(
 export function extractJson<T = unknown>(text: string): T | null {
   if (!text) return null;
   // Strip code fences
-  let s = text.replace(/```(?:json)?/gi, "").trim();
+  const s = text.replace(/```(?:json)?/gi, "").trim();
   // Find the first balanced JSON object/array
   const start = s.search(/[[{]/);
   if (start === -1) return null;

@@ -41,6 +41,7 @@ function codexMerchant(imagePath: string): Promise<string | null> {
     proc.stdin.end();
     proc.on("close", () => {
       // Strip CLI noise + token-count lines; the merchant is the last real line.
+      // eslint-disable-next-line no-control-regex -- strips ANSI color codes from codex CLI output
       const lines = out.split("\n").map((l) => l.replace(/\x1b\[[0-9;]*m/g, "").trim())
         .filter((l) => l && !/^(codex|rollout|thread|Reading prompt|warning:|tokens used|\[)/i.test(l) && !/^[\d,]+$/.test(l) && !/ERROR:/.test(l));
       const ans = lines[lines.length - 1] || "";
