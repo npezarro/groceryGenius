@@ -147,3 +147,36 @@ receipt parser and bridge context are store-type-agnostic.
   /api/user/receipts/:id` edits metadata + parsedItems (price optional).
   Community-imported receipts are owned by `community-receipts`, so they never
   appear in a real user's My Receipts.
+
+## Session Cookie Hygiene on a Shared Domain
+
+This app is served under the `/grocerygenius` base path on a domain it shares with several
+other apps, and it authenticates with `express-session` (`server/index.ts`, `server/auth.ts`).
+Two cross-cutting rules from `agentGuidance/guidance/auth-basepath.md` apply to any session
+cookie set here:
+
+- **The session cookie needs a unique name.** `express-session` defaults to `connect.sid`.
+  Every other Express app on the same domain defaults to the same name, so signing into one
+  silently overwrites the session of the other. Set an app-specific `name` (e.g.
+  `grocerygenius.sid`) in the `session({ ... })` config.
+- **Scope the cookie `path` to the app's base path**, not `/`. With the default `path: "/"`
+  the browser attaches this cookie to requests for every app on the domain. Once roughly
+  8-10 apps do that, the combined `Cookie:` header exceeds the reverse proxy's default
+  header-field limit (8190 bytes) and the origin starts returning
+  `400 Bad Request — Size of a request header field exceeds server limit` for *every*
+  request, including ones that have nothing to do with this app. Set
+  `cookie.path` to `process.env.BASE_PATH || "/"` so the cookie is only sent to this app's
+  own subtree. This is safe here because every route the client calls (pages, `/assets/*`,
+  `/api/*`) already lives under that prefix.
+- **Do not change the cookie name or path without re-testing sign-in.** Renaming the cookie
+  invalidates existing sessions, and a path scoped one level too deep leaves pages rendering
+  fine while login silently fails.
+
+### Verify Auth in Post-Deploy Checks
+
+Extending the post-deploy verification above: an HTTP 200 on the app root does **not** prove
+auth works — a broken session cookie leaves every public page rendering normally while login
+is dead. After any deploy that touches `server/index.ts`, `server/auth.ts`, session config,
+`SESSION_SECRET`, or the base path, exercise the real flow end to end: log in, then hit an
+endpoint behind `requireAuth` (e.g. `GET /api/user/receipts`) with the returned cookie and
+confirm it returns data rather than a 401. Do this before declaring the deploy complete.
