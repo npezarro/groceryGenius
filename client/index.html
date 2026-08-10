@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <title>Grocery Genius - Smart Trip Planner</title>
     <meta name="description" content="Optimize your grocery shopping trips with smart price comparison and route planning." />
+    <!-- Root-relative on purpose: Vite rewrites these with `base` at build time
+         (to /grocerygenius/ in production). A relative href would resolve against
+         the current SPA route and 404 on any deep link. -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="alternate icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   </head>
   <body>
     <div id="root">
