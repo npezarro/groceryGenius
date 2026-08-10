@@ -180,3 +180,10 @@ is dead. After any deploy that touches `server/index.ts`, `server/auth.ts`, sess
 `SESSION_SECRET`, or the base path, exercise the real flow end to end: log in, then hit an
 endpoint behind `requireAuth` (e.g. `GET /api/user/receipts`) with the returned cookie and
 confirm it returns data rather than a 401. Do this before declaring the deploy complete.
+
+## grocerygenius binds port 8080 only after its startup scrape pipeline finishes (~2 min), so a post-deploy 503 is expected
+After 'pm2 restart grocerygenius', PM2 reports the process online within seconds but the app does NOT listen on 8080 until its startup price pipeline has run every adapter (Kroger, Trader Joe's, Safeway, Whole Foods, BLS) and seeded. That took ~2 minutes on 2026-08-10. During that window /grocerygenius/ returns 503 from Apache and 'ss -lptn | grep 8080' shows nothing, which looks exactly like a crashed deploy.
+
+How to tell the difference: tail /home/deploy/.pm2/logs/grocerygenius-out.log and wait for the line '[express] serving on port 8080'. The pipeline's own noisy output ('[traderjoes] GraphQL errors', '[wholefoods] SKIPPED') is normal scraper churn, not a crash. Do not roll back or restart again on the first 503; poll for up to ~3 minutes.
+
+The repo's own CLAUDE.md post-deploy check says to curl for HTTP 200 'within 30 seconds', which is wrong for a cold restart and will make a healthy deploy look failed.
