@@ -110,6 +110,17 @@ describe("formatTripTime", () => {
   it("handles 0 minutes", () => {
     expect(formatTripTime(0)).toBe("0 min");
   });
+
+  it("carries a remainder that rounds up to 60 into the next hour", () => {
+    // Regression: totalTime is a raw float from the planner; a value whose
+    // minute remainder rounds to 60 must render "Xh 0m", never "X-1h 60m".
+    expect(formatTripTime(119.7)).toBe("2h 0m");
+    expect(formatTripTime(179.8)).toBe("3h 0m");
+  });
+
+  it("promotes a sub-hour value that rounds up to 60 into 1h 0m", () => {
+    expect(formatTripTime(59.7)).toBe("1h 0m");
+  });
 });
 
 describe("generateGoogleMapsLink", () => {
