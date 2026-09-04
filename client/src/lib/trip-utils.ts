@@ -19,9 +19,14 @@ export function getSemanticLabel(plan: TripPlan, allPlans: TripPlan[]): { label:
 }
 
 export function formatTripTime(minutes: number): string {
-  if (minutes < 60) return `${Math.round(minutes)} min`;
-  const hours = Math.floor(minutes / 60);
-  const mins = Math.round(minutes % 60);
+  // Round the total first, then split into h/m. Rounding the minute remainder
+  // in isolation (Math.round(minutes % 60)) can round up to a full 60 and render
+  // a malformed "1h 60m" for values like 119.7; carrying the round into the hour
+  // avoids that (119.7 -> "2h 0m", 59.7 -> "1h 0m").
+  const total = Math.round(minutes);
+  if (total < 60) return `${total} min`;
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
   return `${hours}h ${mins}m`;
 }
 
