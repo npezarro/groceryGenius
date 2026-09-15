@@ -80,6 +80,19 @@ groceryGenius uses Vitest (`npx vitest` / `npm test`). Test rules tuned for this
 - **Test glob quoting on CI:** Use a flat glob (`test/*.test.ts`) or let Vitest discover via config. Single-quoted `**/*.test.ts` does not expand on GitHub Actions because globstar is off by default.
 - **CI uses Node 22** (current LTS). Don't pin Node 20 — it reached EOL April 30, 2026.
 
+## Trip Planner: `matchItems` is many-to-one, so the dedupe lives at the resolver
+
+`matchItems()` (`server/lib/trip-planner.ts`) resolves list names with exact-then-fuzzy
+substring matching against a catalog of verbose product names, so several list entries
+routinely collapse onto ONE product (`"chicken"` + `"chicken breast"` → `"Chicken Breast,
+Boneless Skinless"`). Everything downstream is additive per entry and assumes each catalog
+item appears once: `buildPlan` totals and line items, `scorePlans` (normalises on
+`totalCost`), and `coverage`. A `map().filter(nonNull)` reads as one-to-one but is not, so
+the dedupe (keyed on `id`) lives in `matchItems` itself, not in callers. Keep the
+deterministic path and the AI `smartMatch` merge in `server/routes.ts` consistent: both must
+return each catalog item at most once. Regression tests: `trip-planner.test.ts` ("returns
+each catalog item at most once", "matchItems → buildPlan"). PR #219.
+
 ## AI Features (alt-account Claude bridge)
 
 AI features route through `grocerygenius-bridge` (`~/repos/grocerygenius-bridge`,

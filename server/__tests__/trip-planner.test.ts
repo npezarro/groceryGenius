@@ -287,6 +287,58 @@ describe("matchItems", () => {
     const result = matchItems(["Banana"], items);
     expect(result[0].id).toBe("2"); // exact match
   });
+
+  it("returns each catalog item at most once when several names resolve to it", () => {
+    // Live catalogs carry verbose product names, so short list entries collapse
+    // onto the same product: "chicken" and "chicken breast" both fuzzy-match it.
+    const products = [
+      { id: "i1", name: "Chicken Breast, Boneless Skinless" },
+      { id: "i2", name: "Whole Milk, 1 Gallon" },
+    ];
+    const result = matchItems(["chicken", "chicken breast", "milk"], products);
+    expect(result.map(i => i.id)).toEqual(["i1", "i2"]);
+  });
+
+  it("dedupes an exact match followed by a fuzzy match of the same item", () => {
+    // "milk" is an exact hit on "Milk"; "whole milk" fuzzy-matches the same row.
+    const result = matchItems(["milk", "whole milk"], catalog);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("4");
+  });
+
+  it("still returns distinct items that share a fuzzy prefix", () => {
+    const products = [
+      { id: "1", name: "Banana Chips" },
+      { id: "2", name: "Banana" },
+    ];
+    const result = matchItems(["Banana", "Banana Chips"], products);
+    expect(result.map(i => i.id)).toEqual(["2", "1"]);
+  });
+});
+
+// ── matchItems → buildPlan (cross-layer) ──
+
+describe("matchItems → buildPlan", () => {
+  it("does not price a product twice when two list entries match the same catalog item", () => {
+    const storeA = { id: "s-a", name: "Store A", address: "1 Main St", lat: 37.77, lng: -122.42 };
+    const products = [
+      { id: "i1", name: "Chicken Breast, Boneless Skinless" },
+      { id: "i2", name: "Whole Milk, 1 Gallon" },
+    ];
+    const matched = matchItems(["chicken", "chicken breast", "milk"], products);
+    const prices = [
+      makePrice({ itemId: "i1", storeId: "s-a", price: "9.99" }),
+      makePrice({ itemId: "i2", storeId: "s-a", price: "4.49" }),
+    ];
+    const { pricesByStore, itemsByStore } = indexPrices([storeA], prices);
+
+    const plan = buildPlan([storeA], matched, pricesByStore, itemsByStore, 37.76, -122.41);
+
+    // One chicken + one milk, not chicken twice (24.47).
+    expect(plan.totalCost).toBeCloseTo(14.48, 2);
+    expect(plan.stores[0].items.map(i => i.itemId)).toEqual(["i1", "i2"]);
+    expect(plan.coverage).toBe(1);
+  });
 });
 
 // ── buildPlan ──
