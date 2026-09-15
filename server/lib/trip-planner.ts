@@ -275,11 +275,21 @@ export function rankPlans(plans: TripPlan[], maxResults: number = 6): TripPlan[]
 /**
  * Fuzzy-match item names against a catalog.
  * Returns matched items (maintaining input order) with nulls filtered out.
+ *
+ * Each catalog item appears at most once in the result. Two list entries that
+ * resolve to the same product (e.g. "chicken" and "chicken breast" both
+ * fuzzy-matching "Chicken Breast, Boneless Skinless") must not put that product
+ * in the basket twice: buildPlan() prices every entry it is handed, so a
+ * duplicate inflates totalCost, lists the item twice, and (because scorePlans()
+ * normalises on totalCost) ranks the plan below a genuinely worse one. The AI
+ * smartMatch merge in routes.ts already dedupes by id; this keeps the
+ * deterministic path consistent with it.
  */
-export function matchItems<T extends { name: string }>(
+export function matchItems<T extends { id?: string; name: string }>(
   searchNames: string[],
   catalog: T[],
 ): T[] {
+  const seen = new Set<unknown>();
   return searchNames.map(name => {
     const exactMatch = catalog.find(item =>
       item.name.toLowerCase() === name.toLowerCase()
@@ -290,7 +300,15 @@ export function matchItems<T extends { name: string }>(
       name.toLowerCase().includes(item.name.toLowerCase())
     );
     return fuzzyMatch;
-  }).filter((item): item is T => item != null);
+  }).filter((item): item is T => item != null)
+    .filter(item => {
+      // Key on id when the catalog has one, else on the object itself
+      // (catalog.find returns the same reference for repeated hits).
+      const key = item.id ?? item;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 // ── Price indexing ──
