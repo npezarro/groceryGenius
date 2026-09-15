@@ -186,4 +186,12 @@ After 'pm2 restart grocerygenius', PM2 reports the process online within seconds
 
 How to tell the difference: tail /home/deploy/.pm2/logs/grocerygenius-out.log and wait for the line '[express] serving on port 8080'. The pipeline's own noisy output ('[traderjoes] GraphQL errors', '[wholefoods] SKIPPED') is normal scraper churn, not a crash. Do not roll back or restart again on the first 503; poll for up to ~3 minutes.
 
+## `matchItems()` is many-to-one; dedupe lives at the resolver, not each caller (PR #219)
+
+`matchItems()` (`server/lib/trip-planner.ts`) maps each shopping-list name to a catalog item (exact match, then fuzzy substring either direction). Two different list names can resolve to the same catalog item — the live catalog carries verbose product names, so short entries routinely collapse onto the same product (`"chicken"` and `"chicken breast"` both resolve to `"Chicken Breast, Boneless Skinless"`). Without a dedup guard, `buildPlan()` prices every matched entry it's handed, so the collapsed product got added to `totalCost` twice (a $14.48 basket reported $24.47), listed twice in the plan, and — because `scorePlans()` normalises on `totalCost` — the inflated plan ranked *below* a genuinely worse one.
+
+The AI `smartMatch` merge path (`server/routes.ts`) already deduped by `id`; only the deterministic `matchItems` path lacked the guard. Fixed by filtering the matched list so each catalog item appears at most once (keyed on `id`, falling back to object identity), preserving first-occurrence order.
+
+**When touching `matchItems`, `smartMatch`, or any new matcher that maps a list of strings onto the catalog:** verify it dedupes before its output reaches an additive consumer (cost totals, line-item lists, coverage ratios). General pattern: `agentGuidance/guidance/code-review.md` ("A many-to-one resolver must dedupe before an additive accumulator consumes it").
+
 The repo's own CLAUDE.md post-deploy check says to curl for HTTP 200 'within 30 seconds', which is wrong for a cold restart and will make a healthy deploy look failed.
