@@ -1,51 +1,116 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import express from "express";
+import { Readable, Writable } from "node:stream";
 import { z } from "zod";
 import { validateInput } from "../auth";
 
 // ── Helper: make an HTTP request to a test Express app ──────────
+type TestResponse = {
+  status: number;
+  body: Record<string, unknown>;
+  headers: Record<string, string>;
+};
+
 async function request(
   app: express.Express,
   method: "GET" | "POST",
   path: string,
   body?: Record<string, unknown>,
   headers?: Record<string, string>,
-) {
-  const { createServer } = await import("http");
+) : Promise<TestResponse> {
+  const payload = body === undefined ? undefined : JSON.stringify(body);
+  const req = Readable.from(payload ? [Buffer.from(payload)] : []);
 
-  return new Promise<{ status: number; body: Record<string, unknown>; headers: Record<string, string> }>((resolve, reject) => {
-    const server = createServer(app);
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server.address() as import("net").AddressInfo;
-      const url = `http://127.0.0.1:${addr.port}${path}`;
-
-      const payload = body ? JSON.stringify(body) : undefined;
-      const reqHeaders: Record<string, string> = {
-        ...(headers || {}),
-        ...(payload ? { "Content-Type": "application/json" } : {}),
-      };
-
-      fetch(url, { method, body: payload, headers: reqHeaders })
-        .then(async (res) => {
-          const text = await res.text();
-          let parsed: Record<string, unknown>;
-          try {
-            parsed = JSON.parse(text);
-          } catch {
-            parsed = { _raw: text };
+  Object.assign(req, {
+    method,
+    url: path,
+    originalUrl: path,
+    headers: {
+      host: "localhost",
+      ...(headers || {}),
+      ...(payload
+        ? {
+            "content-type": "application/json",
+            "content-length": String(Buffer.byteLength(payload)),
           }
-          resolve({
-            status: res.status,
-            body: parsed,
-            headers: Object.fromEntries(res.headers.entries()),
-          });
-          server.close();
-        })
-        .catch((err) => {
-          server.close();
-          reject(err);
-        });
+        : {}),
+    },
+    httpVersion: "1.1",
+    httpVersionMajor: 1,
+    httpVersionMinor: 1,
+    socket: { encrypted: false, remoteAddress: "127.0.0.1" },
+    connection: { encrypted: false, remoteAddress: "127.0.0.1" },
+  });
+
+  const chunks: Buffer[] = [];
+  const responseHeaders = new Map<string, number | string | readonly string[]>();
+  const res = new Writable({
+    write(chunk, _encoding, callback) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      callback();
+    },
+  }) as Writable & {
+    statusCode: number;
+    statusMessage: string;
+    setHeader(name: string, value: number | string | readonly string[]): typeof res;
+    getHeader(name: string): number | string | readonly string[] | undefined;
+    getHeaders(): Record<string, number | string | readonly string[]>;
+    hasHeader(name: string): boolean;
+    removeHeader(name: string): void;
+    writeHead(
+      statusCode: number,
+      reasonOrHeaders?: string | Record<string, number | string | readonly string[]>,
+      headers?: Record<string, number | string | readonly string[]>,
+    ): typeof res;
+  };
+
+  res.statusCode = 200;
+  res.statusMessage = "OK";
+  res.setHeader = (name, value) => {
+    responseHeaders.set(name.toLowerCase(), value);
+    return res;
+  };
+  res.getHeader = (name) => responseHeaders.get(name.toLowerCase());
+  res.getHeaders = () => Object.fromEntries(responseHeaders.entries());
+  res.hasHeader = (name) => responseHeaders.has(name.toLowerCase());
+  res.removeHeader = (name) => {
+    responseHeaders.delete(name.toLowerCase());
+  };
+  res.writeHead = (statusCode, reasonOrHeaders, headHeaders) => {
+    res.statusCode = statusCode;
+    const headerObject = typeof reasonOrHeaders === "object" ? reasonOrHeaders : headHeaders;
+    if (headerObject) {
+      for (const [name, value] of Object.entries(headerObject)) {
+        res.setHeader(name, value);
+      }
+    }
+    return res;
+  };
+
+  const streamWrite = res.write.bind(res);
+  const streamEnd = res.end.bind(res);
+  res.write = streamWrite;
+  res.end = streamEnd;
+
+  return new Promise<TestResponse>((resolve, reject) => {
+    res.on("finish", () => {
+      const text = Buffer.concat(chunks).toString("utf8");
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = { _raw: text };
+      }
+      resolve({
+        status: res.statusCode,
+        body: parsed,
+        headers: Object.fromEntries(
+          Array.from(responseHeaders.entries()).map(([name, value]) => [name, String(value)]),
+        ),
+      });
     });
+
+    app.handle(req as express.Request, res as unknown as express.Response, reject);
   });
 }
 
