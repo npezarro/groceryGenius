@@ -213,3 +213,86 @@ VISA ****4567
     expect(bananas).toBeDefined();
   });
 });
+
+describe("Receipt Parser — Hyphens and Discounts", () => {
+  it("keeps items whose name contains a hyphen", () => {
+    const text = `
+COCA-COLA 12PK   7.99
+HALF-AND-HALF    3.49
+LOW-FAT MILK     4.19
+7-UP 2L         $2.49
+BANANAS          1.29
+`;
+    expect(parseReceiptText(text)).toEqual([
+      { name: "COCA-COLA 12PK", price: 7.99, quantity: 1 },
+      { name: "HALF-AND-HALF", price: 3.49, quantity: 1 },
+      { name: "LOW-FAT MILK", price: 4.19, quantity: 1 },
+      { name: "7-UP 2L", price: 2.49, quantity: 1 },
+      { name: "BANANAS", price: 1.29, quantity: 1 },
+    ]);
+  });
+
+  it("skips every negative-price discount format, including hyphenated names and tax flags", () => {
+    const discounts = [
+      "COUPON -1.50",
+      "MFR COUPON 1.50-",
+      "STORE COUPON -$1.00",
+      "SC COUPON $-1.00",
+      "COUPON - 1.50",
+      "MEMBER DEAL -$ 1.00",
+      "BONUS BUY -0.50 F",
+      "CLUB CARD 1.00- F",
+      "PROMO-DISC -2.00",
+      "MFR COUPON- 1.00",
+      "COUPON -- 1.50",
+      "SC- $1.00",
+      "MFR COUPON -    1.00",
+      "COUPON -  $1.00",
+      "COUPON -$  1.00",
+      "CLUB CARD 1.00   -",
+      "E-COUPON \u2212 1.00",
+      "LOW-FAT MILK \u2013$1.50",
+      "E-COUPON \uFF0D 1.00",
+    ];
+    for (const line of discounts) {
+      expect(parseReceiptText(line), line).toEqual([]);
+    }
+  });
+
+  it("keeps the item and drops its coupon when both appear", () => {
+    const text = `
+COCA-COLA 12PK   7.99
+MFR COUPON       1.50-
+`;
+    expect(parseReceiptText(text)).toEqual([
+      { name: "COCA-COLA 12PK", price: 7.99, quantity: 1 },
+    ]);
+  });
+});
+
+describe("Receipt Parser — Tax Flag Cleanup", () => {
+  it("does not strip a trailing F, N or T that is part of the word", () => {
+    const text = `
+GREEK YOGURT     3.99
+GROUND BEEF      6.49
+SWEET CORN       0.79
+BACON            5.99 F
+2 SEA SALT       4.58
+`;
+    expect(parseReceiptText(text).map(i => i.name)).toEqual([
+      "GREEK YOGURT",
+      "GROUND BEEF",
+      "SWEET CORN",
+      "BACON",
+      "SEA SALT",
+    ]);
+  });
+
+  it("still strips a standalone tax flag before the price", () => {
+    const text = `
+BANANAS F        1.29
+MILK T           3.99
+`;
+    expect(parseReceiptText(text).map(i => i.name)).toEqual(["BANANAS", "MILK"]);
+  });
+});
