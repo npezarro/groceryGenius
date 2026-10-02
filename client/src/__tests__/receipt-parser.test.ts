@@ -250,6 +250,8 @@ BANANAS          1.29
       "COUPON -  $1.00",
       "COUPON -$  1.00",
       "CLUB CARD 1.00   -",
+      "E-COUPON \u2212 1.00",
+      "LOW-FAT MILK \u2013$1.50",
     ];
     for (const line of discounts) {
       expect(parseReceiptText(line), line).toEqual([]);
