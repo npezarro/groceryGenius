@@ -243,6 +243,9 @@ BANANAS          1.29
       "BONUS BUY -0.50 F",
       "CLUB CARD 1.00- F",
       "PROMO-DISC -2.00",
+      "MFR COUPON- 1.00",
+      "COUPON -- 1.50",
+      "SC- $1.00",
     ];
     for (const line of discounts) {
       expect(parseReceiptText(line), line).toEqual([]);

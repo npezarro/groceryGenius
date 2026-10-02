@@ -55,9 +55,10 @@ const QTY_ITEM_PRICE_PATTERN = /^(\d+)\s+(.+?)\s+\$?([\d]+\.[\d]{2})\s*[A-Z]?\s*
  * Discount/coupon lines: the trailing price itself is negative ("-1.50", "-$1.00",
  * "$-1.00", "- 1.50", or the trailing-minus "1.50-"), optionally followed by a tax flag.
  * The minus must sit on the price, so a hyphen inside the item name ("COCA-COLA 7.99")
- * does not count.
+ * does not count. OCR often glues the minus to the word before it or doubles it
+ * ("COUPON- 1.00", "COUPON -- 1.50"), so no boundary is required before it.
  */
-const DISCOUNT_PATTERN = /(?:^|[\s$])-\s?\$?\s?\d+\.\d{2}\s*[A-Z]?\s*$|\d+\.\d{2}\s?-\s*[A-Z]?\s*$/;
+const DISCOUNT_PATTERN = /-+\s?\$?\s?\d+\.\d{2}\s*[A-Z]?\s*$|\d+\.\d{2}\s?-\s*[A-Z]?\s*$/;
 
 function shouldSkipLine(line: string): boolean {
   return SKIP_PATTERNS.some(pattern => pattern.test(line.trim()));
