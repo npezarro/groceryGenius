@@ -58,9 +58,10 @@ const QTY_ITEM_PRICE_PATTERN = /^(\d+)\s+(.+?)\s+\$?([\d]+\.[\d]{2})\s*[A-Z]?\s*
  * does not count. OCR often glues the minus to the word before it or doubles it
  * ("COUPON- 1.00", "COUPON -- 1.50") and pads columns ("COUPON -    1.00"), so no
  * boundary is required before the minus and any whitespace may follow it. OCR can also
- * read the minus as a unicode minus sign or en/em dash, so those count too.
+ * read the minus as any unicode dash (\p{Pd}: en/em dash, fullwidth hyphen-minus, ...)
+ * or a minus-sign lookalike (U+2212, U+2796, U+02D7), so those count too.
  */
-const DISCOUNT_PATTERN = /[-\u2212\u2013\u2014\u2010]+\s*\$?\s*\d+\.\d{2}\s*[A-Z]?\s*$|\d+\.\d{2}\s*[-\u2212\u2013\u2014\u2010]\s*[A-Z]?\s*$/;
+const DISCOUNT_PATTERN = /[\p{Pd}\u2212\u2796\u02D7]+\s*\$?\s*\d+\.\d{2}\s*[A-Z]?\s*$|\d+\.\d{2}\s*[\p{Pd}\u2212\u2796\u02D7]\s*[A-Z]?\s*$/u;
 
 function shouldSkipLine(line: string): boolean {
   return SKIP_PATTERNS.some(pattern => pattern.test(line.trim()));
