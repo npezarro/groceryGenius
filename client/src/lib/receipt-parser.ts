@@ -51,8 +51,13 @@ const ITEM_PRICE_PATTERN = /^(.+?)\s+\$?([\d]+\.[\d]{2})\s*[A-Z]?\s*$/;
 /** Item with quantity prefix: "2 Bananas 1.98" */
 const QTY_ITEM_PRICE_PATTERN = /^(\d+)\s+(.+?)\s+\$?([\d]+\.[\d]{2})\s*[A-Z]?\s*$/;
 
-/** Discount/coupon lines (negative prices) */
-const DISCOUNT_PATTERN = /^(.+?)\s+-?\$?([\d]+\.[\d]{2})-?\s*$/;
+/**
+ * Discount/coupon lines: the trailing price itself is negative ("-1.50", "-$1.00",
+ * "$-1.00", "- 1.50", or the trailing-minus "1.50-"), optionally followed by a tax flag.
+ * The minus must sit on the price, so a hyphen inside the item name ("COCA-COLA 7.99")
+ * does not count.
+ */
+const DISCOUNT_PATTERN = /(?:^|[\s$])-\s?\$?\s?\d+\.\d{2}\s*[A-Z]?\s*$|\d+\.\d{2}\s?-\s*[A-Z]?\s*$/;
 
 function shouldSkipLine(line: string): boolean {
   return SKIP_PATTERNS.some(pattern => pattern.test(line.trim()));
@@ -62,7 +67,7 @@ function cleanItemName(name: string): string {
   return name
     .replace(/\s+/g, " ")       // collapse whitespace
     .replace(/^[\d#]+\s+/, "")  // remove leading item numbers
-    .replace(/\s*[FNT]$/, "")   // remove tax flags (F=food, N=nontax, T=taxable)
+    .replace(/\s+[FNT]$/, "")   // remove tax flags (F=food, N=nontax, T=taxable); \s+ so YOGURT/BEEF/CORN keep their last letter
     .trim();
 }
 
@@ -113,7 +118,7 @@ export function parseReceiptText(rawText: string): ParsedReceiptItem[] {
     }
 
     // Skip discount lines
-    if (DISCOUNT_PATTERN.test(line) && line.includes("-")) continue;
+    if (DISCOUNT_PATTERN.test(line)) continue;
 
     // Standard: ITEM_NAME    $X.XX
     const itemMatch = line.match(ITEM_PRICE_PATTERN);
