@@ -6,6 +6,7 @@ import {
   distToStore,
   distBetweenStores,
   matchItems,
+  unmatchedNames,
   buildPlan,
   scorePlans,
   rankPlans,
@@ -313,6 +314,47 @@ describe("matchItems", () => {
     ];
     const result = matchItems(["Banana", "Banana Chips"], products);
     expect(result.map(i => i.id)).toEqual(["2", "1"]);
+  });
+});
+
+// ── unmatchedNames (smartMatch AI fallback input) ──
+
+describe("unmatchedNames", () => {
+  const catalog = [
+    { id: "1", name: "Milk" },
+    { id: "2", name: "Kroger® Pure Cane Sugar" },
+  ];
+
+  it("returns only the entries the deterministic matcher missed in a mixed list", () => {
+    // Regression: once any entry matched, the old routes.ts filter returned []
+    // for every entry, so the AI fallback never ran on a mixed list.
+    expect(unmatchedNames(["milk", "zzz-no-match"], catalog)).toEqual(["zzz-no-match"]);
+  });
+
+  it("treats a fuzzy-matched entry as matched", () => {
+    expect(unmatchedNames(["whole milk", "cane sugar", "saffron"], catalog)).toEqual(["saffron"]);
+  });
+
+  it("returns every entry when nothing matches, in input order", () => {
+    expect(unmatchedNames(["saffron", "quinoa"], catalog)).toEqual(["saffron", "quinoa"]);
+  });
+
+  it("returns [] when every entry matches, including two entries on one product", () => {
+    expect(unmatchedNames(["milk", "whole milk"], catalog)).toEqual([]);
+  });
+
+  it("returns every entry against an empty catalog", () => {
+    expect(unmatchedNames(["eggs"], [])).toEqual(["eggs"]);
+  });
+
+  it("agrees with matchItems: the names it misses are exactly the ones matchItems drops", () => {
+    const names = ["milk", "saffron", "cane sugar", "quinoa"];
+    const matchedIds = matchItems(names.filter(n => !unmatchedNames(names, catalog).includes(n)), catalog)
+      .map(i => i.id);
+    expect(matchedIds).toEqual(matchItems(names, catalog).map(i => i.id));
+    for (const n of unmatchedNames(names, catalog)) {
+      expect(matchItems([n], catalog)).toEqual([]);
+    }
   });
 });
 

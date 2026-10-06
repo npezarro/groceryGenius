@@ -15,6 +15,7 @@ import {
   scorePlans,
   rankPlans,
   matchItems,
+  unmatchedNames,
   indexPrices,
   generateCandidatePlans,
   distToStore,
@@ -63,14 +64,8 @@ async function generateTripPlans(
   // Optional AI semantic matching: when the deterministic matcher leaves items
   // unmatched (e.g. "whole milk" vs "Kroger 2% Reduced Fat Milk"), ask the
   // bridge to map the unmatched user names to real catalog names, then re-match.
-  if (smartMatch && aiEnabled() && matchedItems.length < itemNames.length) {
-    const matchedNames = new Set(matchedItems.map((i) => i.name.toLowerCase()));
-    const unmatched = itemNames.filter((n) => {
-      const lower = n.toLowerCase();
-      return !catalog.some(
-        (it) => it.name.toLowerCase() === lower || matchedNames.has(it.name.toLowerCase()),
-      );
-    });
+  if (smartMatch && aiEnabled()) {
+    const unmatched = unmatchedNames(itemNames, catalog);
     if (unmatched.length > 0) {
       try {
         const mapping = await matchItemsAI(unmatched, catalog.map((i) => i.name));
