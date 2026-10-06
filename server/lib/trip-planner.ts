@@ -272,6 +272,30 @@ export function rankPlans(plans: TripPlan[], maxResults: number = 6): TripPlan[]
   return finalPlans;
 }
 
+/** Resolve one list entry: exact (case-insensitive) name first, then substring either way. */
+function matchOne<T extends { name: string }>(name: string, catalog: T[]): T | undefined {
+  const lower = name.toLowerCase();
+  return catalog.find(item => item.name.toLowerCase() === lower)
+    ?? catalog.find(item =>
+      item.name.toLowerCase().includes(lower) ||
+      lower.includes(item.name.toLowerCase())
+    );
+}
+
+/**
+ * The list entries matchItems() could not resolve, in input order. These are
+ * what the smartMatch AI fallback in routes.ts maps to catalog names. It must
+ * be computed per entry: a check against the set of already-matched products
+ * is true for every entry once ANY entry matched, which silently disabled the
+ * fallback for every mixed list.
+ */
+export function unmatchedNames<T extends { name: string }>(
+  searchNames: string[],
+  catalog: T[],
+): string[] {
+  return searchNames.filter(name => matchOne(name, catalog) === undefined);
+}
+
 /**
  * Fuzzy-match item names against a catalog.
  * Returns matched items (maintaining input order) with nulls filtered out.
@@ -290,17 +314,8 @@ export function matchItems<T extends { id?: string; name: string }>(
   catalog: T[],
 ): T[] {
   const seen = new Set<unknown>();
-  return searchNames.map(name => {
-    const exactMatch = catalog.find(item =>
-      item.name.toLowerCase() === name.toLowerCase()
-    );
-    if (exactMatch) return exactMatch;
-    const fuzzyMatch = catalog.find(item =>
-      item.name.toLowerCase().includes(name.toLowerCase()) ||
-      name.toLowerCase().includes(item.name.toLowerCase())
-    );
-    return fuzzyMatch;
-  }).filter((item): item is T => item != null)
+  return searchNames.map(name => matchOne(name, catalog))
+    .filter((item): item is T => item != null)
     .filter(item => {
       // Key on id when the catalog has one, else on the object itself
       // (catalog.find returns the same reference for repeated hits).
