@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deduplicateLatestByStore, parseDaysParam } from "../lib/price-queries";
+import { deduplicateLatestByStore, parseDaysParam, usablePriceEntries } from "../lib/price-queries";
 
 // ---------- deduplicateLatestByStore ----------
 
@@ -133,5 +133,52 @@ describe("parseDaysParam", () => {
 
   it("returns 1 for input of '1' (minimum valid)", () => {
     expect(parseDaysParam("1")).toBe(1);
+  });
+});
+
+// ---------- usablePriceEntries ----------
+
+describe("usablePriceEntries", () => {
+  it("skips lines with no price instead of passing undefined through", () => {
+    // Shape produced by AI receipt parsing when a line shows no price.
+    const items = [
+      { name: "Milk", price: 4.19, quantity: 1 },
+      { name: "Bananas", quantity: 1 },
+      { name: "Bread", price: 3.49 },
+    ];
+    const { usable, skipped } = usablePriceEntries(items);
+    expect(usable.map((i) => i.name)).toEqual(["Milk", "Bread"]);
+    expect(skipped).toBe(1);
+    expect(usable.every((i) => String(i.price) !== "undefined")).toBe(true);
+  });
+
+  it("skips zero, negative, NaN and non-numeric prices", () => {
+    const items = [
+      { name: "A", price: 0 },
+      { name: "B", price: -1.5 },
+      { name: "C", price: NaN },
+      { name: "D", price: "2.99" },
+      { name: "E", price: 2.99 },
+    ];
+    const { usable, skipped } = usablePriceEntries(items);
+    expect(usable.map((i) => i.name)).toEqual(["E"]);
+    expect(skipped).toBe(4);
+  });
+
+  it("skips lines with a blank or missing name", () => {
+    const items = [{ name: "  ", price: 1 }, { price: 1 }, null, { name: "Eggs", price: 5.29 }];
+    const { usable, skipped } = usablePriceEntries(items);
+    expect(usable.map((i) => i.name)).toEqual(["Eggs"]);
+    expect(skipped).toBe(3);
+  });
+
+  it("returns nothing usable for a non-array value", () => {
+    expect(usablePriceEntries(null)).toEqual({ usable: [], skipped: 0 });
+    expect(usablePriceEntries({ name: "Milk", price: 1 })).toEqual({ usable: [], skipped: 0 });
+  });
+
+  it("keeps quantity and unit on usable lines", () => {
+    const { usable } = usablePriceEntries([{ name: "Rice", price: 6, quantity: 2, unit: "lb" }]);
+    expect(usable[0]).toEqual({ name: "Rice", price: 6, quantity: 2, unit: "lb" });
   });
 });

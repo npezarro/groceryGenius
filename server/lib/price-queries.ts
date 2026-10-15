@@ -42,3 +42,38 @@ export function parseDaysParam(
   if (isNaN(parsed) || parsed < 1) return defaultDays;
   return Math.min(parsed, maxDays);
 }
+
+/** A receipt line as stored in `receipts.parsedItems`. */
+export interface ReceiptLine {
+  name?: string;
+  price?: number;
+  quantity?: number;
+  unit?: string;
+}
+
+/**
+ * Split a receipt's parsed items into lines that can become price records and
+ * a count of lines that cannot.
+ *
+ * `price` is optional on stored lines (AI parsing leaves it unset when the
+ * receipt shows no price, and the edit endpoint accepts lines without one), but
+ * `prices.price` is a NOT NULL decimal: `String(undefined)` would write
+ * "undefined" and the insert would fail partway through the receipt. A line
+ * needs a non-empty name and a finite price above zero.
+ */
+export function usablePriceEntries(items: unknown): {
+  usable: Array<ReceiptLine & { name: string; price: number }>;
+  skipped: number;
+} {
+  const lines = Array.isArray(items) ? (items as ReceiptLine[]) : [];
+  const usable = lines.filter(
+    (it): it is ReceiptLine & { name: string; price: number } =>
+      it != null &&
+      typeof it.name === "string" &&
+      it.name.trim() !== "" &&
+      typeof it.price === "number" &&
+      Number.isFinite(it.price) &&
+      it.price > 0,
+  );
+  return { usable, skipped: lines.length - usable.length };
+}
