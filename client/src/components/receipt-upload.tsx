@@ -152,13 +152,20 @@ export default function ReceiptUpload({ stores }: ReceiptUploadProps) {
         method: "POST",
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to submit prices");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Failed to submit prices");
+      }
       return res.json();
     },
     onSuccess: (data) => {
-      toast({ title: "Prices submitted", description: `${data.submitted} prices added to the database` });
+      const skippedNote = data.skipped ? ` (${data.skipped} without a price skipped)` : "";
+      toast({ title: "Prices submitted", description: `${data.submitted} prices added to the database${skippedNote}` });
       qc.invalidateQueries({ queryKey: ["/api/user/receipts"] });
       qc.invalidateQueries({ queryKey: ["/api/prices"] });
+    },
+    onError: (err) => {
+      toast({ title: "Could not submit prices", description: err.message, variant: "destructive" });
     },
   });
 

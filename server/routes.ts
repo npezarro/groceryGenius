@@ -22,7 +22,7 @@ import {
   type StoreWithId,
 } from "./lib/trip-planner";
 import { geocodeAddress } from "./lib/geocoding";
-import { deduplicateLatestByStore, parseDaysParam } from "./lib/price-queries";
+import { deduplicateLatestByStore, parseDaysParam, usablePriceEntries } from "./lib/price-queries";
 import { PRICE_FRESHNESS_DAYS, DEFAULT_ZIP } from "./config";
 import { aiEnabled, AIUnavailableError } from "./lib/ai-bridge";
 import {
@@ -1121,10 +1121,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Receipt must have parsed items and a store" });
       }
 
-      const items = receipt.parsedItems as Array<{ name: string; price: number; quantity?: number; unit?: string }>;
+      const { usable, skipped } = usablePriceEntries(receipt.parsedItems);
+      if (usable.length === 0) {
+        return res.status(400).json({ error: "No items on this receipt have a price to submit", skipped });
+      }
       let submitted = 0;
 
-      for (const entry of items) {
+      for (const entry of usable) {
         const item = await storage.findOrCreateItem(entry.name, entry.unit);
         await storage.createPrice({
           itemId: item.id,
@@ -1138,7 +1141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.updateReceipt(receipt.id, req.session.userId!, { status: "processed" });
-      res.json({ ok: true, submitted });
+      res.json({ ok: true, submitted, skipped });
     } catch (error) {
       console.error("Submit receipt prices error:", error);
       res.status(500).json({ error: "Failed to submit prices from receipt" });
