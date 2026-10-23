@@ -6,6 +6,7 @@
  */
 
 import { callBridge, callBridgeJson, type BridgeModel } from "./ai-bridge";
+import type { BridgeRequester } from "./bridge-requester";
 
 /**
  * Focused merchant identification fallback.
@@ -20,7 +21,10 @@ import { callBridge, callBridgeJson, type BridgeModel } from "./ai-bridge";
  * CLIs are unavailable (Codex model entitlement; Gemini free-tier deprecated), so
  * the reliable tier is a focused pass on the alt-account Claude bridge.
  */
-export async function identifyMerchant(ocrText: string): Promise<string | null> {
+export async function identifyMerchant(
+  ocrText: string,
+  requester: BridgeRequester = "public",
+): Promise<string | null> {
   if (!ocrText || ocrText.trim().length < 8) return null;
   const prompt = `This is noisy OCR from a receipt (any store or restaurant). The OCR may garble the merchant name (e.g. CosTrco=Costco, WHSE=warehouse, RCSS=Real Canadian Superstore). Identify the MERCHANT / store name.
 Reply with ONLY the merchant name (optionally a store number or city), or the single word UNKNOWN. No explanation.
@@ -29,7 +33,7 @@ OCR:
 ${ocrText.slice(0, 4000)}`;
   let resp: string;
   try {
-    resp = (await callBridge(prompt, "haiku")).trim();
+    resp = (await callBridge(prompt, "haiku", undefined, requester)).trim();
   } catch {
     return null;
   }
@@ -63,7 +67,10 @@ const GROCERY_CATEGORIES = [
  * Turn free text (a meal plan, list of recipes, "dinners for the week", or a
  * messy list) into a deduped structured shopping list.
  */
-export async function mealPlanToList(input: string): Promise<ParsedListItem[]> {
+export async function mealPlanToList(
+  input: string,
+  requester: BridgeRequester = "public",
+): Promise<ParsedListItem[]> {
   const prompt = `You are a grocery shopping assistant. Convert the user's request into a consolidated shopping list.
 
 User request:
@@ -81,7 +88,7 @@ Rules:
 Respond with ONLY a JSON array, each element:
 {"name": string, "quantity": number|null, "unit": string|null, "category": string}`;
 
-  const raw = await callBridgeJson<unknown>(prompt, "haiku");
+  const raw = await callBridgeJson<unknown>(prompt, "haiku", requester);
   return normalizeList(raw);
 }
 
@@ -119,7 +126,10 @@ export interface AisleGroup {
  * Group a list of item names into store aisles in a sensible shopping order.
  * Pure-AI, needs no price data — makes the list useful even with zero pricing.
  */
-export async function organizeListByAisle(names: string[]): Promise<AisleGroup[]> {
+export async function organizeListByAisle(
+  names: string[],
+  requester: BridgeRequester = "public",
+): Promise<AisleGroup[]> {
   if (names.length === 0) return [];
   const prompt = `Group this shopping list into store aisles, ordered for an efficient shopping walk (produce first, frozen/refrigerated last).
 
@@ -132,7 +142,7 @@ Every input item must appear exactly once, under one aisle, with its name unchan
 Respond with ONLY a JSON array ordered by shopping sequence:
 [{"aisle": string, "items": [string, ...]}]`;
 
-  const raw = await callBridgeJson<unknown>(prompt, "haiku");
+  const raw = await callBridgeJson<unknown>(prompt, "haiku", requester);
   const arr = Array.isArray(raw) ? raw : [];
   const inputSet = new Set(names.map((n) => n.toLowerCase()));
   const seen = new Set<string>();
@@ -166,6 +176,7 @@ Respond with ONLY a JSON array ordered by shopping sequence:
 export async function matchItemsAI(
   userItems: string[],
   catalog: string[],
+  requester: BridgeRequester = "public",
 ): Promise<Record<string, string | null>> {
   if (userItems.length === 0 || catalog.length === 0) return {};
   const prompt = `Match each shopping-list item to the single closest product from the catalog.
@@ -179,7 +190,7 @@ ${catalog.slice(0, 1200).map((n) => `- ${n}`).join("\n")}
 Respond with ONLY a JSON object mapping each shopping-list item (verbatim) to a catalog name or null:
 {"item name": "Exact Catalog Name" | null, ...}`;
 
-  const raw = await callBridgeJson<Record<string, unknown>>(prompt, "haiku");
+  const raw = await callBridgeJson<Record<string, unknown>>(prompt, "haiku", requester);
   const catalogSet = new Set(catalog);
   const out: Record<string, string | null> = {};
   for (const userItem of userItems) {
@@ -212,6 +223,7 @@ export interface SubstitutionSuggestion {
 export async function suggestSubstitutions(
   target: { name: string; price: number },
   candidates: SubstitutionCandidate[],
+  requester: BridgeRequester = "public",
 ): Promise<SubstitutionSuggestion[]> {
   if (candidates.length === 0) return [];
   const prompt = `A shopper wants "${target.name}" (about $${target.price.toFixed(2)}).
@@ -226,7 +238,7 @@ ${candidates
 Respond with ONLY a JSON array (may be empty), each element:
 {"name": "<exact candidate name>", "reason": "<short why it's a good swap>", "estimatedSavings": <number dollars>}`;
 
-  const raw = await callBridgeJson<unknown>(prompt, "haiku");
+  const raw = await callBridgeJson<unknown>(prompt, "haiku", requester);
   const arr = Array.isArray(raw) ? raw : [];
   const candNames = new Set(candidates.map((c) => c.name));
   const out: SubstitutionSuggestion[] = [];
@@ -273,7 +285,10 @@ export interface ParsedReceipt {
  * Vision is done upstream (OCR); this turns noisy text into clean records.
  * Captures per-line discounts and the store location for the store directory.
  */
-export async function parseReceiptText(ocrText: string): Promise<ParsedReceipt> {
+export async function parseReceiptText(
+  ocrText: string,
+  requester: BridgeRequester = "public",
+): Promise<ParsedReceipt> {
   const prompt = `Parse this receipt OCR text into structured data. The receipt may be from ANY business: a grocery store, restaurant, cafe, kitchenware shop, hardware store, pharmacy, etc. OCR is noisy; infer sensible product/menu-item names.
 
 Receipt text:
@@ -292,7 +307,7 @@ Respond with ONLY JSON:
 {"storeName": string|null, "storeLocation": string|null, "purchaseDate": "YYYY-MM-DD"|null, "total": number|null,
  "items": [{"name": string, "price": number, "quantity": number|null, "unit": string|null, "originalPrice": number|null, "discount": number|null}]}`;
 
-  const raw = await callBridgeJson<Record<string, unknown>>(prompt, "haiku");
+  const raw = await callBridgeJson<Record<string, unknown>>(prompt, "haiku", requester);
   const itemsRaw = Array.isArray(raw?.items) ? (raw.items as unknown[]) : [];
   const items: ParsedReceiptItem[] = [];
   for (const el of itemsRaw) {
@@ -317,7 +332,7 @@ Respond with ONLY JSON:
   let storeName = raw?.storeName ? String(raw.storeName).slice(0, 120) : undefined;
   // Fallback: if the one-shot parse missed the merchant, run a focused pass.
   if (!storeName || !storeName.trim()) {
-    const recovered = await identifyMerchant(ocrText);
+    const recovered = await identifyMerchant(ocrText, requester);
     if (recovered) storeName = recovered;
   }
   return {
