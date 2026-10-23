@@ -9,6 +9,8 @@
  * here so the bridge stays a generic transformer.
  */
 
+import { PUBLIC_PAUSED_MESSAGE, type BridgeRequester } from "./bridge-requester";
+
 const BRIDGE_URL = process.env.CLAUDE_BRIDGE_URL || "";
 const BRIDGE_SECRET = process.env.CLAUDE_BRIDGE_SECRET || "";
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -19,6 +21,17 @@ export class AIUnavailableError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "AIUnavailableError";
+  }
+}
+
+/**
+ * The bridge answered 402: public AI access is paused (the API credits are used up).
+ * Subclass of AIUnavailableError so existing best-effort catches still swallow it.
+ */
+export class AIPausedError extends AIUnavailableError {
+  constructor() {
+    super(PUBLIC_PAUSED_MESSAGE);
+    this.name = "AIPausedError";
   }
 }
 
@@ -35,6 +48,7 @@ export async function callBridge(
   prompt: string,
   model: BridgeModel = "haiku",
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  requester: BridgeRequester = "public",
 ): Promise<string> {
   if (!BRIDGE_URL) {
     throw new AIUnavailableError("AI bridge not configured (CLAUDE_BRIDGE_URL unset)");
@@ -48,6 +62,7 @@ export async function callBridge(
       headers: {
         "Content-Type": "application/json",
         ...(BRIDGE_SECRET ? { "x-bridge-secret": BRIDGE_SECRET } : {}),
+        "X-Bridge-Requester": requester,
       },
       body: JSON.stringify({ prompt, model }),
       signal: controller.signal,
@@ -55,6 +70,7 @@ export async function callBridge(
 
     if (!resp.ok) {
       const body = await resp.text().catch(() => "");
+      if (resp.status === 402) throw new AIPausedError();
       if (resp.status === 429) throw new AIUnavailableError("AI temporarily at capacity");
       throw new AIUnavailableError(`Bridge error ${resp.status}: ${body.slice(0, 200)}`);
     }
@@ -119,14 +135,18 @@ export function extractJson<T = unknown>(text: string): T | null {
 export async function callBridgeJson<T = unknown>(
   prompt: string,
   model: BridgeModel = "haiku",
+  requester: BridgeRequester = "public",
 ): Promise<T> {
-  const first = await callBridge(prompt, model);
+  // A 402 (AIPausedError) throws out of the first call: it is never retried.
+  const first = await callBridge(prompt, model, undefined, requester);
   const parsed = extractJson<T>(first);
   if (parsed !== null) return parsed;
 
   const retry = await callBridge(
     `${prompt}\n\nIMPORTANT: Respond with ONLY valid JSON, no prose, no code fences.`,
     model,
+    undefined,
+    requester,
   );
   const parsedRetry = extractJson<T>(retry);
   if (parsedRetry !== null) return parsedRetry;

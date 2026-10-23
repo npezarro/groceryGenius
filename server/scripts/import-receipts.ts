@@ -121,7 +121,9 @@ async function main() {
       const text = await ocrImage(buf);
       if (!text || text.length < 8) { summary.noText++; console.log(`  ${file}: no OCR text`); continue; }
 
-      const parsed = await parseReceiptText(text);
+      // "owner": this is an operator CLI run by the owner on their own machine over a
+      // local folder of receipts (no web user involved), so it rides the subscription.
+      const parsed = await parseReceiptText(text, "owner");
       if (parsed.items.length === 0) { summary.noItems++; console.log(`  ${file}: parsed 0 items`); continue; }
 
       // Codex vision merchant tier. When enabled (CODEX_MERCHANT_VISION=1) it is

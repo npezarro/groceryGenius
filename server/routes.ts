@@ -24,7 +24,8 @@ import {
 import { geocodeAddress } from "./lib/geocoding";
 import { deduplicateLatestByStore, parseDaysParam, usablePriceEntries } from "./lib/price-queries";
 import { PRICE_FRESHNESS_DAYS, DEFAULT_ZIP } from "./config";
-import { aiEnabled, AIUnavailableError } from "./lib/ai-bridge";
+import { aiEnabled, AIUnavailableError, AIPausedError } from "./lib/ai-bridge";
+import { requesterFor, PUBLIC_PAUSED_MESSAGE, type BridgeRequester } from "./lib/bridge-requester";
 import {
   mealPlanToList,
   organizeListByAisle,
@@ -44,7 +45,8 @@ async function generateTripPlans(
   radiusMiles: number,
   weights: { price: number; time: number; distance: number },
   userHasMembership: boolean = false,
-  smartMatch: boolean = false
+  smartMatch: boolean = false,
+  requester: BridgeRequester = "public"
 ) {
   // Get stores within radius up front so we can scope the catalog to items that
   // actually have fresh prices nearby.
@@ -68,7 +70,7 @@ async function generateTripPlans(
     const unmatched = unmatchedNames(itemNames, catalog);
     if (unmatched.length > 0) {
       try {
-        const mapping = await matchItemsAI(unmatched, catalog.map((i) => i.name));
+        const mapping = await matchItemsAI(unmatched, catalog.map((i) => i.name), requester);
         const aiNames = Object.values(mapping).filter((v): v is string => Boolean(v));
         if (aiNames.length > 0) {
           const extra = matchItems(aiNames, catalog);
@@ -101,6 +103,21 @@ async function generateTripPlans(
 
   scorePlans(candidatePlans, weights);
   return rankPlans(candidatePlans);
+}
+
+/**
+ * Who a bridge job is for: the signed-in user's email decides owner vs public
+ * (bridge-requester.ts). Anonymous visitors, and users without an email, are public.
+ */
+async function bridgeRequesterOf(req: Request): Promise<BridgeRequester> {
+  const userId = req.session?.userId;
+  if (!userId) return "public";
+  try {
+    const user = await storage.getUser(userId);
+    return requesterFor(user?.email);
+  } catch {
+    return "public";
+  }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -410,7 +427,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         radius,
         weights,
         userHasMembership,
-        smartMatch
+        smartMatch,
+        await bridgeRequesterOf(req)
       );
 
       res.json(tripPlans);
@@ -431,6 +449,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   function handleAIError(res: Response, error: unknown, label: string) {
+    if (error instanceof AIPausedError) {
+      return res.status(402).json({ error: PUBLIC_PAUSED_MESSAGE });
+    }
     if (error instanceof AIUnavailableError || error instanceof OCRUnavailableError) {
       return res.status(503).json({ error: error.message });
     }
@@ -445,7 +466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.post("/api/ai/meal-plan", async (req: Request, res: Response) => {
     try {
       const { text } = z.object({ text: z.string().min(1).max(8000) }).parse(req.body);
-      const items = await mealPlanToList(text);
+      const items = await mealPlanToList(text, await bridgeRequesterOf(req));
       res.json({ items });
     } catch (error) {
       handleAIError(res, error, "Meal plan");
@@ -456,7 +477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.post("/api/ai/organize-list", async (req: Request, res: Response) => {
     try {
       const { items } = z.object({ items: z.array(z.string().min(1)).min(1).max(200) }).parse(req.body);
-      const groups = await organizeListByAisle(items);
+      const groups = await organizeListByAisle(items, await bridgeRequesterOf(req));
       res.json({ groups });
     } catch (error) {
       handleAIError(res, error, "Organize list");
@@ -505,7 +526,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .sort((a, b) => a.price - b.price)
         .slice(0, 25);
 
-      const suggestions = await suggestSubstitutions({ name: target.name, price: targetPrice }, candidates);
+      const suggestions = await suggestSubstitutions(
+        { name: target.name, price: targetPrice },
+        candidates,
+        await bridgeRequesterOf(req),
+      );
       res.json({ target: target.name, targetPrice, suggestions });
     } catch (error) {
       handleAIError(res, error, "Substitutions");
@@ -513,7 +538,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // 3. Deals — active promotions, ranked, with AI-written shopper blurbs
-  router.get("/api/ai/deals", async (_req: Request, res: Response) => {
+  router.get("/api/ai/deals", async (req: Request, res: Response) => {
     try {
       const promos = await storage.getPromotionalPrices();
       const items = await storage.getAllItems();
@@ -550,6 +575,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 .map((d) => `- ${d.item} at ${d.store}: $${d.price.toFixed(2)}${d.originalPrice ? ` (was $${d.originalPrice.toFixed(2)}, save $${d.savings.toFixed(2)})` : ""}`)
                 .join("\n"),
             "haiku",
+            undefined,
+            await bridgeRequesterOf(req),
           );
         } catch {
           /* summary is optional */
@@ -572,7 +599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ocrText || ocrText.length < 8) {
         return res.status(422).json({ error: "Could not read any text from the receipt image" });
       }
-      const parsed = await parseReceiptText(ocrText);
+      const parsed = await parseReceiptText(ocrText, await bridgeRequesterOf(req));
 
       const updated = await storage.updateReceipt(req.params.id, req.session.userId!, {
         storeName: parsed.storeName ?? receipt.storeName ?? undefined,
