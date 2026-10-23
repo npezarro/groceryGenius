@@ -211,3 +211,23 @@ The repo's own CLAUDE.md post-deploy check says to curl for HTTP 200 'within 30 
 
 ## learnings-pass documented an unmerged PR's fix as done in CLAUDE.md
 doc-sync run #34 (2026-09-15, groceryGenius): the only in-window commit (4efa7dc, PR #220 'Claude Learnings 1228', auto-merged by claude-auto-merger at 15:47:56Z) added a CLAUDE.md section stating matchItems() in server/lib/trip-planner.ts was 'Fixed by filtering the matched list so each catalog item appears at most once' (citing PR #219). Checked PR #219 directly (gh pr view 219): state OPEN, mergedAt null, opened 14:20:33Z same day, still unreviewed/unmerged over 90 minutes later. Read server/lib/trip-planner.ts on main directly: matchItems() (line 279) has no dedup logic at all -- CLAUDE.md's claim is currently false on main. Root cause: the learnings-pass/autonomousDev pipeline that authored the CLAUDE.md doc commit did not verify the PR it was documenting had actually merged before describing the fix as complete, the same reachability gap doc-sync itself hit repeatedly (see this file's run #5-8, #16 entries) but on the DOCUMENTING side rather than the DIGEST side. This is worse than the usual drift direction (undocumented code) because it makes CLAUDE.md actively wrong, not just incomplete, and append-only doc-sync rules forbid correcting it without a human/automated recheck once #219 merges. No CLAUDE.md PR was opened for this doc-sync run since there is no missing documentation to add; instead this should be checked again once PR #219 resolves (merge -> claim becomes true, no action needed; close/abandon -> CLAUDE.md needs a follow-up correction, which is out of doc-sync's append-only scope and needs a human or a dedicated correction pass). Lesson for any pipeline that writes CLAUDE.md fix-descriptions from a PR body/mission context: verify the PR's mergedAt is non-null (or the commit is git merge-base --is-ancestor'd into the default branch) before describing a fix as done, not just that a PR exists.
+
+## Public API Engine: owner vs public AI requests (PR #226)
+
+AI bridge calls are now tagged by who they're for. `server/lib/bridge-requester.ts`
+exports `requesterFor(email)` (`"owner" | "public"`), checked against `OWNER_EMAILS`
+(comma-separated env var; this public repo ships no default -- unset means every user is
+public, which fails safe since owner jobs would never silently bill the API credits).
+`server/routes.ts`'s `bridgeRequesterOf(req)` resolves it from the signed-in user and
+threads it through `generateTripPlans` / `matchItemsAI` / the AI feature functions in
+`server/lib/ai-features.ts` down to `server/lib/ai-bridge.ts`, which forwards it to the
+`grocerygenius-bridge` container.
+
+- **Why:** the bridge runs owner jobs on the Claude subscription and public jobs on the
+  Claude API credits, and stops serving public jobs once those credits run out.
+- **402 handling:** a new `AIPausedError` (`ai-bridge.ts`) is caught in `handleAIError` and
+  returned as HTTP 402 with the message "Public AI access is paused for now because this
+  month's usage budget is used up. Please check back later."
+- Same `bridge-requester.ts` pattern (verbatim except the `OWNER_EMAILS` default) shared
+  with `runeval`/`shopper`; the engine that actually runs public jobs on the API lives in
+  the bridge containers, not this repo.
