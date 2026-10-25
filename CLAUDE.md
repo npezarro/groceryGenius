@@ -231,3 +231,11 @@ threads it through `generateTripPlans` / `matchItemsAI` / the AI feature functio
 - Same `bridge-requester.ts` pattern (verbatim except the `OWNER_EMAILS` default) shared
   with `runeval`/`shopper`; the engine that actually runs public jobs on the API lives in
   the bridge containers, not this repo.
+
+## Post-Deploy Verification: Additional Checks
+
+Extends the Post-Deploy Verification steps above (from `agentGuidance/guidance/deployment.md`):
+
+- **Confirm the restart actually cycled the process.** `pm2 restart grocerygenius` (including the one inside `deploy.sh`) can exit 0 without restarting anything when PM2's name-to-id metadata is stale, leaving the old server running. "Uptime climbing" does not catch this, since a process that never restarted also has climbing uptime. Compare `restart_time` / PID before and after and confirm the uptime is small (then allow for the ~2 minute cold-start bind described above). If PM2 reports `Process <id> not found`, recover with `pm2 delete grocerygenius`, then start it again from its PM2 ecosystem config on the server, then `pm2 save`.
+- **The production domain sits behind a CDN edge cache.** HTML can be served from the edge for about 60s and static `.js`/`.css` for up to 4 hours, so a post-deploy curl can validate the OLD deploy. Read the `cf-cache-status` header (want `MISS`, `DYNAMIC`, or `EXPIRED`) before trusting the result, and fetch assets without a cache-busting query string, because that is how browsers request them.
+- **UI change: screenshot before and after.** For any deploy with a visual change, run the `project-screenshots` `shoot.sh` tool with `--before <urls>` before deploying and with `--commit <sha> --note "<what changed>" <urls>` after. Read the after shots yourself: an error page or login wall in a shot is a failed deploy. Skip for changes with no UI.
