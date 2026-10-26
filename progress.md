@@ -9,6 +9,10 @@
 > - Never include secrets, credentials, or .env contents
 > - Format: `YYYY-MM-DD | <type> | <description>`
 
+## 2026-10-22/23 -- Public API credits + owner relay
+Bridge jobs route by `X-Bridge-Requester` (from the signed-in email via `bridge-requester.ts`, `OWNER_EMAILS`; trusted only with the bridge secret). Public jobs run on the Max plan's API credits through `docker/public-api-engine.js` (Agent SDK; copy of `public-claude-apps/templates/public-api-engine.js`), spend logged to `api-ledger/`, HTTP 402 "paused" when credits are out, no Codex/subscription fallback for public. Owner jobs also use the API since 2026-10-23 (`OWNER_ENGINE=api`). When the owner's subscription path fails the bridge answers 429 `subscription_unavailable` (only with `X-Owner-Relay: 1`) and the app resends to the VM-local main-account owner relay (`OWNER_RELAY_URL`/`OWNER_RELAY_SECRET` in the VM .env). No owner relay for this app (bridge is WSL-only). Owner list comes from `OWNER_EMAILS` in the VM ecosystem config (empty default in this public repo).
+Full closeout: `privateContext/deliverables/closeouts/2026-10-26-public-apps-on-api-credits-owner-relay.md`
+
 ## Log
 
 | Date | Type | Description |
